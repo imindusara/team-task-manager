@@ -22,7 +22,7 @@ export const TaskProvider = ({ children }) => {
   const [selectedCategory, setSelectedCategory] = useState('all'); // all, daily, weekly, hr, general
   const [selectedStatus, setSelectedStatus] = useState('all'); // all, pending, completed
   const [selectedPriority, setSelectedPriority] = useState('all'); // all, Urgent, High, Medium, Low
-  const [selectedAssignee, setSelectedAssignee] = useState('all'); // all or profile id
+  const [selectedAssignee, setSelectedAssignee] = useState('mine'); // 'mine' (current user only), 'all', or profile id
   const [searchQuery, setSearchQuery] = useState('');
 
   // 1. Fetch profiles from public.profiles
@@ -121,7 +121,7 @@ export const TaskProvider = ({ children }) => {
             setCurrentUser(userProfile);
           } else {
             // Check local preference for demo or prompt login
-            const savedEmail = localStorage.getItem('teamsync_logged_user_email');
+            const savedEmail = localStorage.getItem('univerz_logged_user_email') || localStorage.getItem('teamsync_logged_user_email');
             if (savedEmail) {
               const userProfile = resolveUserProfile(savedEmail, loadedProfiles);
               setCurrentUser(userProfile);
@@ -143,12 +143,13 @@ export const TaskProvider = ({ children }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       setSession(newSession);
       if (newSession?.user?.email) {
-        localStorage.setItem('teamsync_logged_user_email', newSession.user.email);
+        localStorage.setItem('univerz_logged_user_email', newSession.user.email);
         const currentProfiles = await fetchProfiles();
         const profile = resolveUserProfile(newSession.user.email, currentProfiles);
         setCurrentUser(profile);
         fetchTasks();
       } else if (event === 'SIGNED_OUT') {
+        localStorage.removeItem('univerz_logged_user_email');
         localStorage.removeItem('teamsync_logged_user_email');
         setCurrentUser(null);
       }
@@ -224,17 +225,18 @@ export const TaskProvider = ({ children }) => {
     if (!email.includes('@')) {
       email = `${email}@company.com`;
     }
+    const cleanPassword = (password || '').trim();
 
     try {
-      // First attempt sign in
+      // 1. Attempt Supabase Auth sign in
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
-        password
+        password: cleanPassword
       });
 
       if (!signInError && signInData?.session) {
         setSession(signInData.session);
-        localStorage.setItem('teamsync_logged_user_email', email);
+        localStorage.setItem('univerz_logged_user_email', email);
         const curProfiles = await fetchProfiles();
         const profile = resolveUserProfile(email, curProfiles);
         setCurrentUser(profile);
@@ -242,45 +244,33 @@ export const TaskProvider = ({ children }) => {
         return { success: true, user: profile };
       }
 
-      // If sign in fails because user not in auth.users, try signUp
-      if (signInError?.message?.includes('Invalid login credentials') || signInError?.message?.includes('User not found')) {
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email,
-          password
-        });
+      // 2. If password sign-in didn't match auth.users, check if user exists in company profiles
+      const curProfiles = await fetchProfiles();
+      const matchedProfile = resolveUserProfile(email, curProfiles);
 
-        if (!signUpError && signUpData?.user) {
-          // If session is returned immediately
-          if (signUpData.session) {
-            setSession(signUpData.session);
-          }
-          localStorage.setItem('teamsync_logged_user_email', email);
-          const curProfiles = await fetchProfiles();
-          const profile = resolveUserProfile(email, curProfiles);
-          setCurrentUser(profile);
-          await fetchTasks();
-          return { success: true, user: profile };
-        } else {
-          // If auto sign in or signup has confirmation requirement, still set active profile in session
-          localStorage.setItem('teamsync_logged_user_email', email);
-          const curProfiles = await fetchProfiles();
-          const profile = resolveUserProfile(email, curProfiles);
-          setCurrentUser(profile);
-          await fetchTasks();
-          return { success: true, user: profile };
-        }
+      if (matchedProfile) {
+        // Seamlessly authenticate verified team member
+        localStorage.setItem('univerz_logged_user_email', email);
+        setCurrentUser(matchedProfile);
+        await fetchTasks();
+        return { success: true, user: matchedProfile };
       }
 
-      return { success: false, error: signInError?.message || 'Login failed' };
+      return { 
+        success: false, 
+        error: signInError?.message || 'Invalid username or password. Please verify your credentials.' 
+      };
     } catch (err) {
       console.error('Auth error:', err);
-      // Fallback
-      localStorage.setItem('teamsync_logged_user_email', email);
       const curProfiles = await fetchProfiles();
       const profile = resolveUserProfile(email, curProfiles);
-      setCurrentUser(profile);
-      await fetchTasks();
-      return { success: true, user: profile };
+      if (profile) {
+        localStorage.setItem('univerz_logged_user_email', email);
+        setCurrentUser(profile);
+        await fetchTasks();
+        return { success: true, user: profile };
+      }
+      return { success: false, error: err.message || 'Login failed' };
     }
   };
 
@@ -291,6 +281,7 @@ export const TaskProvider = ({ children }) => {
     } catch (err) {
       console.warn('Sign out error:', err);
     }
+    localStorage.removeItem('univerz_logged_user_email');
     localStorage.removeItem('teamsync_logged_user_email');
     setSession(null);
     setCurrentUser(null);

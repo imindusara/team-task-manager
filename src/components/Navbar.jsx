@@ -14,6 +14,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { getDepartmentBadge } from '../lib/demoData';
+import univerzLogo from '../assets/univerz-logo.png';
 
 export default function Navbar() {
   const { 
@@ -34,14 +35,14 @@ export default function Navbar() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           {/* Brand Logo & Name */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white shadow-lg shadow-indigo-500/25 ring-2 ring-indigo-400/30">
-              <CheckSquare size={22} className="stroke-[2.5]" />
+            <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-orange-500/20 ring-2 ring-orange-500/30 bg-[#de7843] flex items-center justify-center p-0.5 flex-shrink-0">
+              <img src={univerzLogo} alt="univerz logo" className="w-full h-full object-cover rounded-lg" />
             </div>
 
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-base font-black tracking-tight text-white">
-                  TeamSync
+                  univerz Task Board
                 </span>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                   Supabase Live

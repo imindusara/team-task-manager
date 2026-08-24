@@ -13,7 +13,9 @@ import {
   HeartHandshake, 
   Sparkles,
   ShieldCheck,
-  Zap
+  Zap,
+  User,
+  Users
 } from 'lucide-react';
 import { getDepartmentBadge } from '../lib/demoData';
 
@@ -29,8 +31,6 @@ export default function ManagerDashboard() {
     setSelectedStatus,
     selectedPriority,
     setSelectedPriority,
-    selectedAssignee,
-    setSelectedAssignee,
     searchQuery,
     setSearchQuery
   } = useTasks();
@@ -38,8 +38,11 @@ export default function ManagerDashboard() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [modalCategory, setModalCategory] = useState('general');
 
-  // Filter tasks
-  const filteredTasks = tasks.filter((task) => {
+  // Strictly filter tasks to ONLY the logged in user's assigned tasks
+  const myTasks = tasks.filter((t) => t.assigned_to === currentUser?.id);
+
+  // Filter tasks by category, status, priority, search
+  const filteredTasks = myTasks.filter((task) => {
     const cat = (task.task_type || task.category || '').toLowerCase();
     if (selectedCategory !== 'all' && cat !== selectedCategory.toLowerCase()) return false;
     
@@ -48,7 +51,6 @@ export default function ManagerDashboard() {
     if (selectedStatus === 'completed' && !isDone) return false;
     
     if (selectedPriority !== 'all' && (task.priority || '').toLowerCase() !== selectedPriority.toLowerCase()) return false;
-    if (selectedAssignee !== 'all' && task.assigned_to !== selectedAssignee) return false;
     
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -59,12 +61,17 @@ export default function ManagerDashboard() {
     return true;
   });
 
+  const myTotal = myTasks.length;
+  const myCompleted = myTasks.filter((t) => t.is_completed).length;
+  const myPending = myTotal - myCompleted;
+  const myRate = myTotal > 0 ? Math.round((myCompleted / myTotal) * 100) : 0;
+
   const categories = [
-    { id: 'all', label: 'All Tasks', icon: Layers, count: tasks.length },
-    { id: 'daily', label: 'Daily Checklist', icon: Clock, count: tasks.filter(t => (t.task_type || t.category) === 'daily').length },
-    { id: 'weekly', label: 'Weekly Goals', icon: Calendar, count: tasks.filter(t => (t.task_type || t.category) === 'weekly').length },
-    { id: 'hr', label: 'HR & Dept', icon: HeartHandshake, count: tasks.filter(t => (t.task_type || t.category) === 'hr').length },
-    { id: 'general', label: 'General Tasks', icon: Sparkles, count: tasks.filter(t => (t.task_type || t.category) === 'general').length },
+    { id: 'all', label: 'My Tasks', icon: Layers, count: myTasks.length },
+    { id: 'daily', label: 'Daily Checklist', icon: Clock, count: myTasks.filter(t => (t.task_type || t.category) === 'daily').length },
+    { id: 'weekly', label: 'Weekly Goals', icon: Calendar, count: myTasks.filter(t => (t.task_type || t.category) === 'weekly').length },
+    { id: 'hr', label: 'HR & Dept', icon: HeartHandshake, count: myTasks.filter(t => (t.task_type || t.category) === 'hr').length },
+    { id: 'general', label: 'General Tasks', icon: Sparkles, count: myTasks.filter(t => (t.task_type || t.category) === 'general').length },
   ];
 
   const handleOpenCreate = (category = 'general') => {
@@ -111,12 +118,12 @@ export default function ManagerDashboard() {
           </div>
         </div>
 
-        {/* Global KPIs */}
+        {/* Personal KPIs for Logged-In User */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mt-6 pt-6 border-t border-slate-800/80">
           <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800">
-            <div className="text-slate-400 text-xs font-medium">Total Tasks</div>
+            <div className="text-slate-400 text-xs font-medium">My Assigned Tasks</div>
             <div className="text-xl sm:text-2xl font-black text-white mt-1">
-              {metrics.total}
+              {myTotal}
             </div>
           </div>
 
@@ -124,7 +131,7 @@ export default function ManagerDashboard() {
             <div className="text-slate-400 text-xs font-medium">Completed</div>
             <div className="text-xl sm:text-2xl font-black text-emerald-400 mt-1 flex items-center gap-1.5">
               <CheckCircle2 size={18} />
-              {metrics.completed}
+              {myCompleted}
             </div>
           </div>
 
@@ -132,14 +139,14 @@ export default function ManagerDashboard() {
             <div className="text-slate-400 text-xs font-medium">Pending Checklist</div>
             <div className="text-xl sm:text-2xl font-black text-amber-400 mt-1 flex items-center gap-1.5">
               <Clock size={18} />
-              {metrics.pending}
+              {myPending}
             </div>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800">
-            <div className="text-slate-400 text-xs font-medium">Team Completion Rate</div>
+            <div className="text-slate-400 text-xs font-medium">Completion Rate</div>
             <div className="text-xl sm:text-2xl font-black text-indigo-400 mt-1">
-              {metrics.completionRate}%
+              {myRate}%
             </div>
           </div>
         </div>
@@ -153,33 +160,40 @@ export default function ManagerDashboard() {
       {/* Task Filters & Feed */}
       <div className="space-y-4">
         {/* Category Tabs */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3">
-          {categories.map((cat) => {
-            const Icon = cat.icon;
-            const isActive = selectedCategory === cat.id;
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {categories.map((cat) => {
+              const Icon = cat.icon;
+              const isActive = selectedCategory === cat.id;
 
-            return (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-                  isActive
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/25 scale-[1.02]'
-                    : 'bg-slate-900/80 hover:bg-slate-800 text-slate-300 border border-slate-800'
-                }`}
-              >
-                <Icon size={14} />
-                <span>{cat.label}</span>
-                <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                    isActive ? 'bg-indigo-800/60 text-white' : 'bg-slate-800 text-slate-400'
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.id)}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                    isActive
+                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/25 scale-[1.02]'
+                      : 'bg-slate-900/80 hover:bg-slate-800 text-slate-300 border border-slate-800'
                   }`}
                 >
-                  {cat.count}
-                </span>
-              </button>
-            );
-          })}
+                  <Icon size={14} />
+                  <span>{cat.label}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                      isActive ? 'bg-indigo-800/60 text-white' : 'bg-slate-800 text-slate-400'
+                    }`}
+                  >
+                    {cat.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Showing tasks for: <strong className="text-white">{currentUser?.full_name || currentUser?.username}</strong></span>
+          </div>
         </div>
 
         {/* Toolbar */}
@@ -190,7 +204,7 @@ export default function ManagerDashboard() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search company tasks..."
+              placeholder="Search my assigned tasks..."
               className="w-full pl-9 pr-4 py-2 rounded-xl glass-input text-xs text-white placeholder:text-slate-500"
             />
           </div>
@@ -202,9 +216,9 @@ export default function ManagerDashboard() {
               onChange={(e) => setSelectedStatus(e.target.value)}
               className="rounded-xl glass-input px-3 py-2 text-xs text-slate-200 bg-slate-900 cursor-pointer"
             >
-              <option value="all">All Statuses</option>
-              <option value="pending">Pending Only</option>
-              <option value="completed">Completed Only</option>
+              <option value="all">All Statuses ({myTotal})</option>
+              <option value="pending">Pending Only ({myPending})</option>
+              <option value="completed">Completed Only ({myCompleted})</option>
             </select>
 
             {/* Priority */}
@@ -218,20 +232,6 @@ export default function ManagerDashboard() {
               <option value="High">High</option>
               <option value="Medium">Medium</option>
               <option value="Low">Low</option>
-            </select>
-
-            {/* Assignee Filter */}
-            <select
-              value={selectedAssignee}
-              onChange={(e) => setSelectedAssignee(e.target.value)}
-              className="rounded-xl glass-input px-3 py-2 text-xs text-slate-200 bg-slate-900 cursor-pointer"
-            >
-              <option value="all">All 6 Members</option>
-              {profiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.full_name || p.username} ({p.department})
-                </option>
-              ))}
             </select>
           </div>
         </div>

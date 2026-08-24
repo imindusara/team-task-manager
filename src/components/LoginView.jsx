@@ -14,11 +14,12 @@ import {
 } from 'lucide-react';
 import { useTasks } from '../context/TaskContext';
 import { TEAM_MEMBERS, getDepartmentBadge } from '../lib/demoData';
+import univerzLogo from '../assets/univerz-logo.png';
 
 export default function LoginView() {
   const { login, registerOrLoginUser } = useTasks();
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('password123');
+  const [identifier, setIdentifier] = useState('ashan@company.com');
+  const [password, setPassword] = useState('Ashan@Password123');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -46,8 +47,8 @@ export default function LoginView() {
   };
 
   const handleQuickSelectMember = (member) => {
-    setIdentifier(member.username);
-    setPassword('password123');
+    setIdentifier(member.email || member.username);
+    setPassword(member.username === 'ashan' ? 'Ashan@Password123' : 'password123');
     setErrorMsg('');
   };
 
@@ -60,11 +61,11 @@ export default function LoginView() {
       <div className="w-full max-w-md relative z-10 space-y-6">
         {/* Brand Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-xl shadow-indigo-500/25 ring-4 ring-indigo-500/20 mb-2">
-            <CheckSquare size={30} className="stroke-[2.5]" />
+          <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl shadow-xl shadow-orange-500/20 ring-4 ring-orange-500/20 mb-2 overflow-hidden bg-[#de7843] p-1.5">
+            <img src={univerzLogo} alt="univerz Logo" className="w-full h-full object-cover rounded-xl" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            TeamSync Workspace
+            univerz Task Board
           </h1>
           <p className="text-xs sm:text-sm text-slate-400">
             Sign in to access your company dashboard & daily tasks

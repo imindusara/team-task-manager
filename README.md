@@ -1,4 +1,4 @@
-# TeamSync - 6-Person Company Task Management Web App
+# univerz Task Board - 6-Person Company Task Management Web App
 
 A modern, collaborative Task Management Web App built with **React**, **Tailwind CSS**, **Lucide Icons**, and **Supabase Realtime**.
 
