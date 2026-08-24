@@ -12,7 +12,7 @@ export const TaskProvider = ({ children }) => {
   const [authLoading, setAuthLoading] = useState(true);
 
   // Database records
-  const [profiles, setProfiles] = useState(TEAM_MEMBERS);
+  const [profiles, setProfiles] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [isRealtimeLive, setIsRealtimeLive] = useState(false);
@@ -25,7 +25,7 @@ export const TaskProvider = ({ children }) => {
   const [selectedAssignee, setSelectedAssignee] = useState('all'); // all or profile id
   const [searchQuery, setSearchQuery] = useState('');
 
-  // 1. Fetch profiles from public.profiles
+  // 1. Fetch profiles strictly from public.profiles
   const fetchProfiles = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -34,7 +34,6 @@ export const TaskProvider = ({ children }) => {
         .order('full_name', { ascending: true });
 
       if (!error && data && data.length > 0) {
-        // Merge with avatar/color presets
         const enriched = data.map(p => {
           const preset = TEAM_MEMBERS.find(tm => tm.id === p.id || tm.username === p.username || tm.email === p.email);
           return {
@@ -47,12 +46,12 @@ export const TaskProvider = ({ children }) => {
         return enriched;
       }
     } catch (err) {
-      console.error('Error fetching profiles:', err);
+      console.error('Error fetching profiles from Supabase:', err);
     }
-    return TEAM_MEMBERS;
+    return [];
   }, []);
 
-  // 2. Fetch tasks from public.tasks
+  // 2. Fetch tasks strictly from public.tasks
   const fetchTasks = useCallback(async () => {
     try {
       setLoadingTasks(true);
@@ -62,7 +61,6 @@ export const TaskProvider = ({ children }) => {
         .order('created_at', { ascending: false });
 
       if (!error && data) {
-        // Normalize task fields
         const normalized = data.map(t => ({
           ...t,
           category: t.task_type || t.category || 'general',
@@ -71,7 +69,7 @@ export const TaskProvider = ({ children }) => {
         setTasks(normalized);
         setLastSyncTime(new Date());
       } else if (error) {
-        console.error('Error fetching tasks:', error);
+        console.error('Error fetching tasks from Supabase:', error);
       }
     } catch (err) {
       console.error('Task fetch exception:', err);
@@ -80,51 +78,25 @@ export const TaskProvider = ({ children }) => {
     }
   }, []);
 
-  // 3. Resolve Current Profile from auth session
-  const resolveUserProfile = useCallback((userEmail, currentProfiles) => {
-    if (!userEmail) return null;
-    const normalizedEmail = userEmail.toLowerCase().trim();
-    const username = normalizedEmail.split('@')[0];
-
-    const match = currentProfiles.find(
-      p => p.email?.toLowerCase() === normalizedEmail || p.username?.toLowerCase() === username
-    );
-
-    if (match) return match;
-
-    // Fallback based on email
-    return {
-      id: crypto.randomUUID ? crypto.randomUUID() : `u-${Date.now()}`,
-      full_name: username.charAt(0).toUpperCase() + username.slice(1),
-      username,
-      email: userEmail,
-      department: 'General',
-      role: 'member',
-      avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(username)}`,
-      color: '#6366f1'
-    };
-  }, []);
-
-  // 4. Initialize Auth listener
+  // 3. Check Session on Mount
   useEffect(() => {
     let isMounted = true;
 
     const initAuth = async () => {
       try {
         const loadedProfiles = await fetchProfiles();
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
 
         if (isMounted) {
-          setSession(initialSession);
-          if (initialSession?.user?.email) {
-            const userProfile = resolveUserProfile(initialSession.user.email, loadedProfiles);
-            setCurrentUser(userProfile);
-          } else {
-            // Check local preference for demo or prompt login
-            const savedEmail = localStorage.getItem('teamsync_logged_user_email');
-            if (savedEmail) {
-              const userProfile = resolveUserProfile(savedEmail, loadedProfiles);
-              setCurrentUser(userProfile);
+          setSession(currentSession);
+          if (currentSession?.user?.email) {
+            const userEmail = currentSession.user.email.toLowerCase().trim();
+            const username = userEmail.split('@')[0];
+            const matched = loadedProfiles.find(
+              p => p.email?.toLowerCase() === userEmail || p.username?.toLowerCase() === username
+            );
+            if (matched) {
+              setCurrentUser(matched);
             }
           }
           await fetchTasks();
@@ -143,13 +115,20 @@ export const TaskProvider = ({ children }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       setSession(newSession);
       if (newSession?.user?.email) {
-        localStorage.setItem('teamsync_logged_user_email', newSession.user.email);
-        const currentProfiles = await fetchProfiles();
-        const profile = resolveUserProfile(newSession.user.email, currentProfiles);
-        setCurrentUser(profile);
-        fetchTasks();
+        const userEmail = newSession.user.email.toLowerCase().trim();
+        const username = userEmail.split('@')[0];
+        const loadedProfiles = await fetchProfiles();
+        const matched = loadedProfiles.find(
+          p => p.email?.toLowerCase() === userEmail || p.username?.toLowerCase() === username
+        );
+        if (matched) {
+          setCurrentUser(matched);
+          fetchTasks();
+        } else {
+          // User authenticated but not authorized in profiles table
+          setCurrentUser(null);
+        }
       } else if (event === 'SIGNED_OUT') {
-        localStorage.removeItem('teamsync_logged_user_email');
         setCurrentUser(null);
       }
     });
@@ -158,9 +137,9 @@ export const TaskProvider = ({ children }) => {
       isMounted = false;
       subscription?.unsubscribe();
     };
-  }, [fetchProfiles, fetchTasks, resolveUserProfile]);
+  }, [fetchProfiles, fetchTasks]);
 
-  // 5. Subscribe to Supabase Realtime for Tasks & Profiles
+  // 4. Subscribe to Supabase Realtime for Tasks & Profiles
   useEffect(() => {
     const channel = supabase
       .channel('realtime:company-tasks')
@@ -218,85 +197,80 @@ export const TaskProvider = ({ children }) => {
     }
   }, []);
 
-  // 6. Login / Register handler
-  const registerOrLoginUser = async (identifier, password) => {
-    let email = identifier.trim().toLowerCase();
+  // 5. Strict Login Handler: Only users in Supabase with valid credentials can log in
+  const login = async (identifier, password) => {
+    const trimmedId = identifier.trim().toLowerCase();
+    let email = trimmedId;
     if (!email.includes('@')) {
-      email = `${email}@company.com`;
+      email = `${trimmedId}@company.com`;
+    }
+    const username = trimmedId.replace('@company.com', '');
+
+    // Step 1: Check if the user exists in Supabase profiles table
+    let currentProfiles = profiles;
+    if (currentProfiles.length === 0) {
+      currentProfiles = await fetchProfiles();
     }
 
+    const matchedProfile = currentProfiles.find(
+      p => p.email?.toLowerCase() === email || p.username?.toLowerCase() === username
+    );
+
+    if (!matchedProfile) {
+      return {
+        success: false,
+        error: `User "${identifier}" was not found in the Supabase company profiles database. Access denied.`
+      };
+    }
+
+    // Step 2: Authenticate credentials against Supabase
     try {
-      // First attempt sign in
+      // Authenticate with Supabase Auth
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
-      if (!signInError && signInData?.session) {
+      if (signInError) {
+        // If password is wrong or auth failed
+        return {
+          success: false,
+          error: 'Invalid password or username. Please check your Supabase credentials and try again.'
+        };
+      }
+
+      if (signInData?.session) {
         setSession(signInData.session);
-        localStorage.setItem('teamsync_logged_user_email', email);
-        const curProfiles = await fetchProfiles();
-        const profile = resolveUserProfile(email, curProfiles);
-        setCurrentUser(profile);
+        setCurrentUser(matchedProfile);
         await fetchTasks();
-        return { success: true, user: profile };
+        return { success: true, user: matchedProfile };
       }
 
-      // If sign in fails because user not in auth.users, try signUp
-      if (signInError?.message?.includes('Invalid login credentials') || signInError?.message?.includes('User not found')) {
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email,
-          password
-        });
-
-        if (!signUpError && signUpData?.user) {
-          // If session is returned immediately
-          if (signUpData.session) {
-            setSession(signUpData.session);
-          }
-          localStorage.setItem('teamsync_logged_user_email', email);
-          const curProfiles = await fetchProfiles();
-          const profile = resolveUserProfile(email, curProfiles);
-          setCurrentUser(profile);
-          await fetchTasks();
-          return { success: true, user: profile };
-        } else {
-          // If auto sign in or signup has confirmation requirement, still set active profile in session
-          localStorage.setItem('teamsync_logged_user_email', email);
-          const curProfiles = await fetchProfiles();
-          const profile = resolveUserProfile(email, curProfiles);
-          setCurrentUser(profile);
-          await fetchTasks();
-          return { success: true, user: profile };
-        }
-      }
-
-      return { success: false, error: signInError?.message || 'Login failed' };
+      return {
+        success: false,
+        error: 'Authentication failed. Please verify your Supabase account status.'
+      };
     } catch (err) {
-      console.error('Auth error:', err);
-      // Fallback
-      localStorage.setItem('teamsync_logged_user_email', email);
-      const curProfiles = await fetchProfiles();
-      const profile = resolveUserProfile(email, curProfiles);
-      setCurrentUser(profile);
-      await fetchTasks();
-      return { success: true, user: profile };
+      console.error('Authentication exception:', err);
+      return {
+        success: false,
+        error: err.message || 'Authentication error. Please check your credentials.'
+      };
     }
   };
 
-  // 7. Logout handler
+  // 6. Logout Handler
   const logout = async () => {
     try {
       await supabase.auth.signOut();
     } catch (err) {
       console.warn('Sign out error:', err);
     }
-    localStorage.removeItem('teamsync_logged_user_email');
     setSession(null);
     setCurrentUser(null);
   };
 
-  // 8. 1-Click Toggle Task Status (Checkbox Tick)
+  // 7. Toggle Task Status (Checkbox Tick)
   const toggleTaskStatus = useCallback(async (taskId, note = '') => {
     const currentTask = tasks.find(t => t.id === taskId);
     if (!currentTask) return;
@@ -309,7 +283,6 @@ export const TaskProvider = ({ children }) => {
       is_completed: nextIsCompleted,
       status: nextIsCompleted ? 'completed' : 'pending',
       completed_at: nextIsCompleted ? nowIso : null,
-      completed_by: nextIsCompleted ? currentUser?.id : null,
       completion_note: nextIsCompleted ? (note || currentTask.completion_note || '') : ''
     };
 
@@ -337,9 +310,9 @@ export const TaskProvider = ({ children }) => {
     } catch (err) {
       console.error('Task update exception:', err);
     }
-  }, [tasks, currentUser, triggerConfetti]);
+  }, [tasks, triggerConfetti]);
 
-  // 9. Create Task
+  // 8. Create Task
   const createTask = useCallback(async (taskData) => {
     const payload = {
       title: taskData.title.trim(),
@@ -370,31 +343,16 @@ export const TaskProvider = ({ children }) => {
         setLastSyncTime(new Date());
         return created;
       } else if (error) {
-        console.error('Error creating task:', error);
-        // Optimistic fallback
-        const fakeTask = {
-          id: Date.now(),
-          ...payload,
-          category: payload.task_type,
-          status: 'pending',
-          created_at: new Date().toISOString()
-        };
-        setTasks(prev => [fakeTask, ...prev]);
-        return fakeTask;
+        console.error('Error creating task in Supabase:', error);
       }
     } catch (err) {
       console.error('Create task exception:', err);
     }
   }, [currentUser]);
 
-  // 10. Update Task details
+  // 9. Update Task details
   const updateTask = useCallback(async (taskId, updates) => {
-    setTasks(prev => prev.map(t => {
-      if (t.id === taskId) {
-        return { ...t, ...updates };
-      }
-      return t;
-    }));
+    setTasks(prev => prev.map(t => (t.id === taskId ? { ...t, ...updates } : t)));
 
     try {
       await supabase
@@ -406,7 +364,7 @@ export const TaskProvider = ({ children }) => {
     }
   }, []);
 
-  // 11. Delete Task
+  // 10. Delete Task
   const deleteTask = useCallback(async (taskId) => {
     setTasks(prev => prev.filter(t => t.id !== taskId));
     setLastSyncTime(new Date());
@@ -427,7 +385,7 @@ export const TaskProvider = ({ children }) => {
     return currentUser.role === 'admin' || currentUser.department === 'HR';
   }, [currentUser]);
 
-  // Compute Metrics for the 6 team members
+  // Metrics calculation
   const metrics = useMemo(() => {
     const total = tasks.length;
     const completed = tasks.filter(t => t.is_completed).length;
@@ -480,7 +438,7 @@ export const TaskProvider = ({ children }) => {
     setSelectedAssignee,
     searchQuery,
     setSearchQuery,
-    registerOrLoginUser,
+    login,
     logout,
     toggleTaskStatus,
     createTask,
