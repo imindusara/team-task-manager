@@ -5,28 +5,27 @@ import {
   Calendar, 
   MessageSquare, 
   Trash2, 
-  AlertCircle, 
   Tag, 
   CheckCircle2,
   Edit3
 } from 'lucide-react';
 import { useTasks } from '../context/TaskContext';
 import TaskCompletionModal from './TaskCompletionModal';
+import { getDepartmentBadge } from '../lib/demoData';
 
 export default function TaskCard({ task }) {
-  const { profiles, toggleTaskStatus, deleteTask, updateTask, currentUser } = useTasks();
+  const { profiles, toggleTaskStatus, deleteTask, updateTask, isAdmin } = useTasks();
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
 
   const assignedProfile = profiles.find((p) => p.id === task.assigned_to);
-  const isCompleted = task.status === 'completed';
+  const isCompleted = Boolean(task.is_completed);
 
   // Category Theme Details
-  const getCategoryTheme = (cat) => {
-    switch (cat) {
+  const getCategoryTheme = (type) => {
+    switch (type?.toLowerCase()) {
       case 'daily':
         return {
-          label: 'Daily Task',
+          label: 'Daily Checklist',
           badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
         };
       case 'weekly':
@@ -36,12 +35,12 @@ export default function TaskCard({ task }) {
         };
       case 'hr':
         return {
-          label: 'HR / Dept',
+          label: 'HR & Dept',
           badge: 'bg-pink-500/15 text-pink-300 border-pink-500/30'
         };
       default:
         return {
-          label: 'General',
+          label: 'General Task',
           badge: 'bg-slate-700/40 text-slate-300 border-slate-600/40'
         };
     }
@@ -49,7 +48,7 @@ export default function TaskCard({ task }) {
 
   // Priority Theme Details
   const getPriorityTheme = (prio) => {
-    switch (prio) {
+    switch (prio?.toLowerCase()) {
       case 'urgent':
         return {
           label: 'Urgent',
@@ -87,7 +86,6 @@ export default function TaskCard({ task }) {
     if (isCompleted) {
       return {
         text: `Due ${due.toLocaleDateString([], { month: 'short', day: 'numeric' })}`,
-        isOverdue: false,
         className: 'text-slate-500'
       };
     }
@@ -95,25 +93,22 @@ export default function TaskCard({ task }) {
     if (diffHours < 0) {
       return {
         text: `Overdue (${Math.abs(Math.round(diffHours))}h ago)`,
-        isOverdue: true,
         className: 'text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20 font-semibold'
       };
     } else if (diffHours <= 24) {
       return {
         text: `Due Today (${due.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`,
-        isOverdue: false,
         className: 'text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20 font-medium'
       };
     } else {
       return {
         text: `Due ${due.toLocaleDateString([], { month: 'short', day: 'numeric' })}`,
-        isOverdue: false,
         className: 'text-slate-400'
       };
     }
   };
 
-  const catTheme = getCategoryTheme(task.category);
+  const catTheme = getCategoryTheme(task.task_type || task.category);
   const prioTheme = getPriorityTheme(task.priority);
   const dueInfo = getDueDateInfo();
 
@@ -129,11 +124,9 @@ export default function TaskCard({ task }) {
   return (
     <>
       <div
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
         className={`group relative rounded-2xl p-4 transition-all duration-200 border ${
           isCompleted
-            ? 'bg-slate-900/40 border-slate-800/60 opacity-85'
+            ? 'bg-slate-900/40 border-slate-800/60 opacity-80'
             : 'bg-slate-900/80 hover:bg-slate-900 border-slate-800 hover:border-slate-700/80 shadow-lg shadow-black/20 hover:shadow-indigo-500/5'
         }`}
       >
@@ -154,7 +147,7 @@ export default function TaskCard({ task }) {
 
           {/* Content Body */}
           <div className="flex-1 min-w-0">
-            {/* Header: Title & Badges */}
+            {/* Header: Badges & Due Date */}
             <div className="flex flex-wrap items-center gap-2 mb-1.5">
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${catTheme.badge}`}>
                 {catTheme.label}
@@ -175,7 +168,7 @@ export default function TaskCard({ task }) {
 
             {/* Task Title */}
             <h4
-              className={`text-sm font-semibold leading-snug transition-colors ${
+              className={`text-sm font-bold leading-snug transition-colors ${
                 isCompleted
                   ? 'text-slate-400 line-through decoration-slate-500 decoration-2'
                   : 'text-slate-100 group-hover:text-indigo-200'
@@ -200,7 +193,7 @@ export default function TaskCard({ task }) {
               <div className="mt-2.5 p-2 rounded-xl bg-emerald-950/30 border border-emerald-800/40 flex items-start gap-2 text-xs text-emerald-300">
                 <MessageSquare size={13} className="mt-0.5 flex-shrink-0 text-emerald-400" />
                 <div className="flex-1 min-w-0">
-                  <span className="font-semibold text-[11px] uppercase tracking-wider text-emerald-400 block">
+                  <span className="font-bold text-[10px] uppercase tracking-wider text-emerald-400 block">
                     Completion Note:
                   </span>
                   <p className="text-xs text-emerald-200 line-clamp-2">{task.completion_note}</p>
@@ -215,20 +208,6 @@ export default function TaskCard({ task }) {
               </div>
             )}
 
-            {/* Tags */}
-            {task.tags && task.tags.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
-                {task.tags.map((tag, idx) => (
-                  <span
-                    key={idx}
-                    className="text-[10px] text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700/60"
-                  >
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-            )}
-
             {/* Footer: Assignee & Action Buttons */}
             <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-800/70 text-xs">
               {/* Assignee Avatar */}
@@ -237,11 +216,14 @@ export default function TaskCard({ task }) {
                   <div className="flex items-center gap-2">
                     <img
                       src={assignedProfile.avatar_url}
-                      alt={assignedProfile.name}
+                      alt={assignedProfile.full_name}
                       className="w-5 h-5 rounded-full object-cover ring-1 ring-slate-700"
                     />
                     <span className="text-[11px] font-medium text-slate-300">
-                      {assignedProfile.name}
+                      {assignedProfile.full_name}
+                    </span>
+                    <span className={`text-[9px] px-1.5 py-0.2 rounded border font-medium ${getDepartmentBadge(assignedProfile.department)}`}>
+                      {assignedProfile.department}
                     </span>
                   </div>
                 ) : (
@@ -258,7 +240,7 @@ export default function TaskCard({ task }) {
 
               {/* Action Buttons */}
               <div className="flex items-center gap-1">
-                {/* Add/Edit Note Button */}
+                {/* Add/Edit Note */}
                 <button
                   type="button"
                   onClick={() => setIsNoteModalOpen(true)}
@@ -268,15 +250,17 @@ export default function TaskCard({ task }) {
                   <MessageSquare size={14} />
                 </button>
 
-                {/* Delete Button */}
-                <button
-                  type="button"
-                  onClick={() => deleteTask(task.id)}
-                  className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors opacity-70 hover:opacity-100"
-                  title="Delete task"
-                >
-                  <Trash2 size={14} />
-                </button>
+                {/* Delete (Admin only or creator) */}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => deleteTask(task.id)}
+                    className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors opacity-70 hover:opacity-100"
+                    title="Delete task"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </div>
             </div>
           </div>

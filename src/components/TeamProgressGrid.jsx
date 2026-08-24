@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTasks } from '../context/TaskContext';
-import { CheckCircle2, Clock, ListTodo, TrendingUp, UserCheck } from 'lucide-react';
+import { CheckCircle2, Clock, ListTodo, TrendingUp, ShieldCheck } from 'lucide-react';
+import { getDepartmentBadge } from '../lib/demoData';
 
 export default function TeamProgressGrid() {
   const { metrics, selectedAssignee, setSelectedAssignee } = useTasks();
@@ -11,15 +12,15 @@ export default function TeamProgressGrid() {
         <div className="flex items-center gap-2">
           <TrendingUp size={16} className="text-indigo-400" />
           <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-            6-Person Team Completion Overview
+            6-Member Team Progress & Workload
           </h3>
         </div>
         {selectedAssignee !== 'all' && (
           <button
             onClick={() => setSelectedAssignee('all')}
-            className="text-xs text-indigo-400 hover:text-indigo-300 font-medium"
+            className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold"
           >
-            Clear member filter
+            Clear filter (Show All)
           </button>
         )}
       </div>
@@ -28,14 +29,14 @@ export default function TeamProgressGrid() {
         {metrics.memberStats.map((member) => {
           const isSelected = selectedAssignee === member.id;
           const rate = member.completionRate;
+          const isAdmin = member.role === 'admin' || member.department === 'HR';
 
-          // Color calculation
           let progressColor = 'from-indigo-500 to-indigo-600';
           let textColor = 'text-indigo-400';
-          if (rate === 100) {
+          if (rate === 100 && member.totalTasks > 0) {
             progressColor = 'from-emerald-400 to-emerald-600';
             textColor = 'text-emerald-400';
-          } else if (rate >= 60) {
+          } else if (rate >= 50) {
             progressColor = 'from-sky-400 to-indigo-500';
             textColor = 'text-sky-400';
           } else if (rate > 0) {
@@ -49,38 +50,37 @@ export default function TeamProgressGrid() {
               onClick={() => setSelectedAssignee(isSelected ? 'all' : member.id)}
               className={`p-3.5 rounded-2xl transition-all cursor-pointer border ${
                 isSelected
-                  ? 'bg-indigo-950/40 border-indigo-500/70 shadow-lg shadow-indigo-500/10 ring-2 ring-indigo-500/30'
+                  ? 'bg-indigo-950/40 border-indigo-500 shadow-lg shadow-indigo-500/10 ring-2 ring-indigo-500/30'
                   : 'bg-slate-900/70 hover:bg-slate-800/80 border-slate-800 hover:border-slate-700'
               }`}
             >
-              {/* Top Row: Avatar & Profile Details */}
+              {/* Profile details */}
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="relative">
                     <img
                       src={member.avatar_url}
-                      alt={member.name}
+                      alt={member.full_name}
                       className="w-10 h-10 rounded-full object-cover ring-2 ring-slate-700/80"
                     />
-                    {member.role === 'manager' && (
-                      <span className="absolute -top-1 -right-1 text-[8px] font-bold px-1 bg-amber-500 text-slate-950 rounded-full">
-                        Lead
+                    {isAdmin && (
+                      <span className="absolute -top-1 -right-1 text-[8px] font-black px-1 bg-amber-500 text-slate-950 rounded-full">
+                        HR
                       </span>
                     )}
                   </div>
                   <div className="min-w-0">
-                    <h4 className="text-xs font-bold text-slate-100 truncate flex items-center gap-1.5">
-                      {member.name}
+                    <h4 className="text-xs font-bold text-slate-100 truncate flex items-center gap-1">
+                      {member.full_name || member.username}
                     </h4>
-                    <span className="text-[11px] text-slate-400 block truncate">
+                    <span className={`inline-block text-[9px] px-1.5 py-0.2 rounded border font-medium mt-0.5 ${getDepartmentBadge(member.department)}`}>
                       {member.department}
                     </span>
                   </div>
                 </div>
 
-                {/* Percentage Badge */}
                 <div className="text-right flex-shrink-0">
-                  <span className={`text-base font-extrabold ${textColor}`}>
+                  <span className={`text-base font-black ${textColor}`}>
                     {rate}%
                   </span>
                 </div>
@@ -94,7 +94,7 @@ export default function TeamProgressGrid() {
                 />
               </div>
 
-              {/* Bottom Metrics Pill */}
+              {/* Metrics counts */}
               <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-800/60 text-slate-400">
                 <span className="flex items-center gap-1">
                   <ListTodo size={12} className="text-slate-400" />

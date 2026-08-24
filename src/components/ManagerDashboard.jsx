@@ -6,23 +6,23 @@ import CreateTaskModal from './CreateTaskModal';
 import { 
   Plus, 
   Search, 
-  Filter, 
   CheckCircle2, 
   Clock, 
   Layers, 
   Calendar, 
   HeartHandshake, 
   Sparkles,
-  AlertCircle,
-  SlidersHorizontal,
-  Flame
+  ShieldCheck,
+  Zap
 } from 'lucide-react';
+import { getDepartmentBadge } from '../lib/demoData';
 
 export default function ManagerDashboard() {
   const {
     tasks,
     profiles,
     metrics,
+    currentUser,
     selectedCategory,
     setSelectedCategory,
     selectedStatus,
@@ -40,31 +40,31 @@ export default function ManagerDashboard() {
 
   // Filter tasks
   const filteredTasks = tasks.filter((task) => {
-    // Category match
-    if (selectedCategory !== 'all' && task.category !== selectedCategory) return false;
-    // Status match
-    if (selectedStatus !== 'all' && task.status !== selectedStatus) return false;
-    // Priority match
-    if (selectedPriority !== 'all' && task.priority !== selectedPriority) return false;
-    // Assignee match
+    const cat = (task.task_type || task.category || '').toLowerCase();
+    if (selectedCategory !== 'all' && cat !== selectedCategory.toLowerCase()) return false;
+    
+    const isDone = Boolean(task.is_completed);
+    if (selectedStatus === 'pending' && isDone) return false;
+    if (selectedStatus === 'completed' && !isDone) return false;
+    
+    if (selectedPriority !== 'all' && (task.priority || '').toLowerCase() !== selectedPriority.toLowerCase()) return false;
     if (selectedAssignee !== 'all' && task.assigned_to !== selectedAssignee) return false;
-    // Search match
+    
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const matchTitle = task.title.toLowerCase().includes(q);
-      const matchDesc = task.description?.toLowerCase().includes(q);
-      const matchTags = task.tags?.some((t) => t.toLowerCase().includes(q));
-      if (!matchTitle && !matchDesc && !matchTags) return false;
+      const matchTitle = (task.title || '').toLowerCase().includes(q);
+      const matchDesc = (task.description || '').toLowerCase().includes(q);
+      if (!matchTitle && !matchDesc) return false;
     }
     return true;
   });
 
   const categories = [
     { id: 'all', label: 'All Tasks', icon: Layers, count: tasks.length },
-    { id: 'daily', label: 'Daily Ops', icon: Clock, count: tasks.filter(t => t.category === 'daily').length },
-    { id: 'weekly', label: 'Weekly Sprints', icon: Calendar, count: tasks.filter(t => t.category === 'weekly').length },
-    { id: 'hr', label: 'HR & Dept', icon: HeartHandshake, count: tasks.filter(t => t.category === 'hr').length },
-    { id: 'general', label: 'General', icon: Sparkles, count: tasks.filter(t => t.category === 'general').length },
+    { id: 'daily', label: 'Daily Checklist', icon: Clock, count: tasks.filter(t => (t.task_type || t.category) === 'daily').length },
+    { id: 'weekly', label: 'Weekly Goals', icon: Calendar, count: tasks.filter(t => (t.task_type || t.category) === 'weekly').length },
+    { id: 'hr', label: 'HR & Dept', icon: HeartHandshake, count: tasks.filter(t => (t.task_type || t.category) === 'hr').length },
+    { id: 'general', label: 'General Tasks', icon: Sparkles, count: tasks.filter(t => (t.task_type || t.category) === 'general').length },
   ];
 
   const handleOpenCreate = (category = 'general') => {
@@ -74,30 +74,29 @@ export default function ManagerDashboard() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Top Banner: Quick Summary & Quick Add */}
-      <div className="rounded-3xl glass-panel p-6 border border-slate-800/90 relative overflow-hidden">
-        {/* Subtle Background Glow */}
+      {/* Admin Operations Banner */}
+      <div className="rounded-3xl glass-panel p-6 sm:p-7 border border-slate-800 relative overflow-hidden shadow-2xl">
         <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
 
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-semibold mb-3">
-              <Sparkles size={13} />
-              Manager Operations Hub
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold mb-3">
+              <ShieldCheck size={14} />
+              HR & Admin Management Panel ({currentUser?.full_name})
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Company Team Task Board
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              Company Task & Workflow Hub
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
-              Oversee daily operational checklists, weekly sprints, and HR departmental requirements for your 6-person team.
+              Assign and monitor Daily Checklists, Weekly Goals, and HR tasks for all 6 company members in real time.
             </p>
           </div>
 
-          {/* Action Button */}
+          {/* Action Buttons */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => handleOpenCreate('daily')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 transition-all shadow-sm"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-200 transition-all shadow-sm"
             >
               <Clock size={14} className="text-emerald-400" />
               + Daily Task
@@ -112,10 +111,10 @@ export default function ManagerDashboard() {
           </div>
         </div>
 
-        {/* Aggregate KPI Stats */}
+        {/* Global KPIs */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mt-6 pt-6 border-t border-slate-800/80">
           <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800">
-            <div className="text-slate-400 text-xs font-medium">Total Team Tasks</div>
+            <div className="text-slate-400 text-xs font-medium">Total Tasks</div>
             <div className="text-xl sm:text-2xl font-black text-white mt-1">
               {metrics.total}
             </div>
@@ -130,7 +129,7 @@ export default function ManagerDashboard() {
           </div>
 
           <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800">
-            <div className="text-slate-400 text-xs font-medium">In Progress / Pending</div>
+            <div className="text-slate-400 text-xs font-medium">Pending Checklist</div>
             <div className="text-xl sm:text-2xl font-black text-amber-400 mt-1 flex items-center gap-1.5">
               <Clock size={18} />
               {metrics.pending}
@@ -138,7 +137,7 @@ export default function ManagerDashboard() {
           </div>
 
           <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800">
-            <div className="text-slate-400 text-xs font-medium">Overall Progress</div>
+            <div className="text-slate-400 text-xs font-medium">Team Completion Rate</div>
             <div className="text-xl sm:text-2xl font-black text-indigo-400 mt-1">
               {metrics.completionRate}%
             </div>
@@ -146,12 +145,12 @@ export default function ManagerDashboard() {
         </div>
       </div>
 
-      {/* 6-Person Team Completion Overview Grid */}
-      <div className="rounded-3xl glass-panel p-5 border border-slate-800/90">
+      {/* 6-Person Team Progress Grid */}
+      <div className="rounded-3xl glass-panel p-5 border border-slate-800">
         <TeamProgressGrid />
       </div>
 
-      {/* Filter and Task Listing Section */}
+      {/* Task Filters & Feed */}
       <div className="space-y-4">
         {/* Category Tabs */}
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3">
@@ -172,7 +171,7 @@ export default function ManagerDashboard() {
                 <Icon size={14} />
                 <span>{cat.label}</span>
                 <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
                     isActive ? 'bg-indigo-800/60 text-white' : 'bg-slate-800 text-slate-400'
                   }`}
                 >
@@ -183,31 +182,21 @@ export default function ManagerDashboard() {
           })}
         </div>
 
-        {/* Toolbar: Search, Status, Priority, Assignee Filters */}
+        {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/70 p-3 rounded-2xl border border-slate-800">
-          {/* Search Box */}
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search tasks, descriptions, tags..."
+              placeholder="Search company tasks..."
               className="w-full pl-9 pr-4 py-2 rounded-xl glass-input text-xs text-white placeholder:text-slate-500"
             />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-white"
-              >
-                Clear
-              </button>
-            )}
           </div>
 
-          {/* Filter Selects */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            {/* Status Filter */}
+            {/* Status */}
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
@@ -218,17 +207,17 @@ export default function ManagerDashboard() {
               <option value="completed">Completed Only</option>
             </select>
 
-            {/* Priority Filter */}
+            {/* Priority */}
             <select
               value={selectedPriority}
               onChange={(e) => setSelectedPriority(e.target.value)}
               className="rounded-xl glass-input px-3 py-2 text-xs text-slate-200 bg-slate-900 cursor-pointer"
             >
               <option value="all">All Priorities</option>
-              <option value="urgent">Urgent</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
+              <option value="Urgent">Urgent</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
             </select>
 
             {/* Assignee Filter */}
@@ -237,32 +226,32 @@ export default function ManagerDashboard() {
               onChange={(e) => setSelectedAssignee(e.target.value)}
               className="rounded-xl glass-input px-3 py-2 text-xs text-slate-200 bg-slate-900 cursor-pointer"
             >
-              <option value="all">All Team Members</option>
+              <option value="all">All 6 Members</option>
               {profiles.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name}
+                  {p.full_name || p.username} ({p.department})
                 </option>
               ))}
             </select>
           </div>
         </div>
 
-        {/* Task Cards Grid / List */}
+        {/* Task Cards Grid */}
         {filteredTasks.length === 0 ? (
-          <div className="text-center py-16 rounded-3xl glass-panel border border-slate-800/80">
+          <div className="text-center py-16 rounded-3xl glass-panel border border-slate-800">
             <div className="w-12 h-12 rounded-2xl bg-slate-800 text-slate-400 mx-auto flex items-center justify-center mb-3">
               <CheckCircle2 size={24} />
             </div>
-            <h4 className="text-sm font-bold text-slate-200">No tasks found matching criteria</h4>
+            <h4 className="text-sm font-bold text-slate-200">No tasks found</h4>
             <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-              Try adjusting your category tabs, priority filters, or create a new task.
+              No tasks currently match your filter criteria. Click below to assign a new task.
             </p>
             <button
-              onClick={() => handleOpenCreate(selectedCategory !== 'all' ? selectedCategory : 'general')}
-              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-500 transition-colors"
+              onClick={() => handleOpenCreate('daily')}
+              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-500 transition-colors shadow-md"
             >
               <Plus size={14} />
-              Create Task Now
+              Assign Task Now
             </button>
           </div>
         ) : (
@@ -274,7 +263,7 @@ export default function ManagerDashboard() {
         )}
       </div>
 
-      {/* Create Task Modal */}
+      {/* Create Modal */}
       <CreateTaskModal
         isOpen={isCreateModalOpen}
         defaultCategory={modalCategory}
