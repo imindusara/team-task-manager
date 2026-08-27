@@ -5,12 +5,8 @@ import {
   CheckSquare, 
   Plus, 
   LogOut, 
-  Radio, 
-  Sparkles, 
-  ShieldCheck,
+  ShieldCheck, 
   User,
-  Clock,
-  Layers,
   ChevronDown
 } from 'lucide-react';
 import { getDepartmentBadge } from '../lib/demoData';
@@ -21,9 +17,7 @@ export default function Navbar() {
     currentUser, 
     isAdmin, 
     logout, 
-    isRealtimeLive, 
-    profiles, 
-    setCurrentUser 
+    isRealtimeLive 
   } = useTasks();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -33,7 +27,7 @@ export default function Navbar() {
     <>
       <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-          {/* Brand Logo & Name */}
+          {/* Brand Logo */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-orange-500/20 ring-2 ring-orange-500/30 bg-[#de7843] flex items-center justify-center p-0.5 flex-shrink-0">
               <img src={univerzLogo} alt="univerz logo" className="w-full h-full object-cover rounded-lg" />
@@ -89,7 +83,7 @@ export default function Navbar() {
               </button>
             )}
 
-            {/* User Profile & Dropdown */}
+            {/* Authenticated User Profile */}
             <div className="relative">
               <button
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
@@ -134,10 +128,10 @@ export default function Navbar() {
               {/* Profile Menu Dropdown */}
               {isUserMenuOpen && (
                 <div 
-                  className="absolute right-0 mt-2 w-64 rounded-2xl glass-panel p-2 shadow-2xl border border-slate-700 z-50 animate-slide-up"
+                  className="absolute right-0 mt-2 w-60 rounded-2xl glass-panel p-2 shadow-2xl border border-slate-700 z-50 animate-slide-up"
                   onMouseLeave={() => setIsUserMenuOpen(false)}
                 >
-                  <div className="px-3 py-2 border-b border-slate-800/80 mb-1">
+                  <div className="px-3 py-2 border-b border-slate-800/80 mb-2">
                     <span className="text-xs font-bold text-white block">
                       {currentUser?.full_name}
                     </span>
@@ -145,52 +139,26 @@ export default function Navbar() {
                       {currentUser?.email}
                     </span>
                     <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded mt-1.5 border ${getDepartmentBadge(currentUser?.department)}`}>
-                      Dept: {currentUser?.department}
+                      {currentUser?.department} &bull; {currentUser?.role}
                     </span>
                   </div>
 
-                  <div className="py-1">
-                    <div className="text-[10px] text-slate-400 px-3 py-1 font-bold uppercase tracking-wider">
-                      Switch User (Testing):
-                    </div>
-                    {profiles.map(p => (
-                      <button
-                        key={p.id}
-                        onClick={() => {
-                          setCurrentUser(p);
-                          setIsUserMenuOpen(false);
-                        }}
-                        className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs rounded-xl text-left transition-colors ${
-                          p.id === currentUser?.id ? 'bg-indigo-600/20 text-indigo-300 font-bold' : 'hover:bg-slate-800/80 text-slate-300'
-                        }`}
-                      >
-                        <img src={p.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
-                        <span className="truncate flex-1">{p.full_name}</span>
-                        {p.role === 'admin' && (
-                          <span className="text-[8px] bg-amber-500/20 text-amber-300 px-1 rounded">HR</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="border-t border-slate-800/80 pt-1 mt-1">
-                    <button
-                      onClick={logout}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-500/10 transition-colors"
-                    >
-                      <LogOut size={14} />
-                      Sign Out
-                    </button>
-                  </div>
+                  <button
+                    onClick={logout}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-500/10 transition-colors"
+                  >
+                    <LogOut size={14} />
+                    Sign Out (Logout)
+                  </button>
                 </div>
               )}
             </div>
 
-            {/* Direct Logout Icon Button */}
+            {/* Direct Logout Button */}
             <button
               onClick={logout}
               className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors"
-              title="Sign Out"
+              title="Sign Out (Logout)"
             >
               <LogOut size={16} />
             </button>

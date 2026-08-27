@@ -10,14 +10,14 @@ import {
   Eye, 
   EyeOff, 
   Users,
-  Zap
+  Database
 } from 'lucide-react';
 import { useTasks } from '../context/TaskContext';
 import { TEAM_MEMBERS, getDepartmentBadge } from '../lib/demoData';
 import univerzLogo from '../assets/univerz-logo.png';
 
 export default function LoginView() {
-  const { login, registerOrLoginUser } = useTasks();
+  const { login, profiles } = useTasks();
   const [identifier, setIdentifier] = useState('ashan@company.com');
   const [password, setPassword] = useState('Ashan@Password123');
   const [showPassword, setShowPassword] = useState(false);
@@ -27,7 +27,12 @@ export default function LoginView() {
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     if (!identifier.trim()) {
-      setErrorMsg('Please enter your username or email address.');
+      setErrorMsg('Please enter your company username or email address.');
+      return;
+    }
+
+    if (!password) {
+      setErrorMsg('Please enter your account password.');
       return;
     }
 
@@ -35,26 +40,28 @@ export default function LoginView() {
     setErrorMsg('');
 
     try {
-      const res = await registerOrLoginUser(identifier.trim(), password);
+      const res = await login(identifier.trim(), password);
       if (!res.success) {
-        setErrorMsg(res.error || 'Authentication failed. Please check your credentials.');
+        setErrorMsg(res.error || 'Invalid credentials. Access denied.');
       }
     } catch (err) {
-      setErrorMsg(err.message || 'An unexpected error occurred during login.');
+      setErrorMsg(err.message || 'Authentication error. Please check your credentials.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleQuickSelectMember = (member) => {
-    setIdentifier(member.email || member.username);
-    setPassword(member.username === 'ashan' ? 'Ashan@Password123' : 'password123');
+  const handleQuickFill = (username) => {
+    setIdentifier(username);
+    setPassword(username === 'ashan' ? 'Ashan@Password123' : 'password123');
     setErrorMsg('');
   };
 
+  const teamList = profiles && profiles.length > 0 ? profiles : TEAM_MEMBERS;
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 sm:p-6 relative overflow-hidden bg-slate-950">
-      {/* Dynamic Background Glows */}
+      {/* Background Glows */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none -translate-x-1/2 -translate-y-1/2" />
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-pink-600/10 rounded-full blur-3xl pointer-events-none translate-x-1/2 translate-y-1/2" />
 
@@ -68,16 +75,16 @@ export default function LoginView() {
             univerz Task Board
           </h1>
           <p className="text-xs sm:text-sm text-slate-400">
-            Sign in to access your company dashboard & daily tasks
+            Sign in with your verified Supabase company account
           </p>
         </div>
 
         {/* Login Card */}
         <div className="rounded-3xl glass-panel p-6 sm:p-8 border border-slate-800 shadow-2xl backdrop-blur-2xl">
           {errorMsg && (
-            <div className="mb-5 p-3.5 rounded-2xl bg-rose-950/60 border border-rose-800/80 text-rose-300 text-xs flex items-start gap-2.5 animate-shake">
+            <div className="mb-5 p-3.5 rounded-2xl bg-rose-950/70 border border-rose-800 text-rose-300 text-xs flex items-start gap-2.5 shadow-lg">
               <AlertCircle size={16} className="mt-0.5 flex-shrink-0 text-rose-400" />
-              <span>{errorMsg}</span>
+              <div className="flex-1 font-medium leading-relaxed">{errorMsg}</div>
             </div>
           )}
 
@@ -85,10 +92,8 @@ export default function LoginView() {
             {/* Username or Email */}
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
-                <span>Username or Email</span>
-                <span className="text-[10px] text-indigo-400 font-normal">
-                  e.g. "ashan" or "ashan@company.com"
-                </span>
+                <span>Username / Email</span>
+                <span className="text-[10px] text-slate-500">e.g. "ashan" or "ashan@company.com"</span>
               </label>
               <div className="relative">
                 <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -116,7 +121,7 @@ export default function LoginView() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter password"
+                  placeholder="Enter your Supabase account password"
                   className="w-full pl-10 pr-10 py-2.5 rounded-xl glass-input text-xs text-white placeholder:text-slate-500 font-medium"
                 />
                 <button
@@ -138,37 +143,35 @@ export default function LoginView() {
               {isLoading ? (
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Authenticating with Supabase...</span>
+                  <span>Verifying with Supabase...</span>
                 </div>
               ) : (
                 <>
-                  <span>Sign In to Dashboard</span>
+                  <span>Sign In</span>
                   <ArrowRight size={15} />
                 </>
               )}
             </button>
           </form>
 
-          {/* Quick 1-Click Team Member Selectors */}
+          {/* Quick Username Autocomplete */}
           <div className="mt-6 pt-5 border-t border-slate-800/80">
             <div className="flex items-center justify-between mb-3">
               <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5 uppercase tracking-wider">
                 <Users size={12} className="text-indigo-400" />
-                Quick Select 6-Person Team:
+                Select Username (6 Supabase Members):
               </span>
-              <span className="text-[10px] text-slate-500">1-click fill</span>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              {TEAM_MEMBERS.map((member) => {
-                const isAdmin = member.role === 'admin' || member.department === 'HR';
+              {teamList.map((member) => {
                 const isSelected = identifier.toLowerCase() === member.username || identifier.toLowerCase() === member.email;
 
                 return (
                   <button
                     key={member.id}
                     type="button"
-                    onClick={() => handleQuickSelectMember(member)}
+                    onClick={() => handleQuickFill(member.username)}
                     className={`p-2 rounded-xl border text-left transition-all flex items-center gap-2 ${
                       isSelected
                         ? 'bg-indigo-600/20 border-indigo-500/60 shadow-md text-white'
@@ -181,18 +184,11 @@ export default function LoginView() {
                       className="w-6 h-6 rounded-full object-cover ring-1 ring-slate-700 flex-shrink-0"
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1">
-                        <span className="text-[11px] font-bold truncate block">
-                          {member.full_name.split(' ')[0]}
-                        </span>
-                        {isAdmin && (
-                          <span className="text-[8px] px-1 bg-amber-500/20 text-amber-300 rounded font-bold">
-                            HR
-                          </span>
-                        )}
-                      </div>
+                      <span className="text-[11px] font-bold truncate block">
+                        {member.full_name || member.username}
+                      </span>
                       <span className="text-[9px] text-slate-400 block truncate">
-                        {member.department}
+                        @{member.username} &bull; {member.department}
                       </span>
                     </div>
                   </button>
@@ -202,10 +198,10 @@ export default function LoginView() {
           </div>
         </div>
 
-        {/* Footer info */}
+        {/* Security badge */}
         <div className="text-center text-[11px] text-slate-400 flex items-center justify-center gap-2">
-          <ShieldCheck size={13} className="text-emerald-400" />
-          <span>Connected to Supabase Authentication & Realtime Database</span>
+          <Database size={13} className="text-emerald-400" />
+          <span>Strict Supabase Authentication & Role Verification</span>
         </div>
       </div>
     </div>
