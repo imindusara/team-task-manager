@@ -7,11 +7,11 @@ export default function CreateTaskModal({ isOpen, onClose, defaultCategory = 'ge
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState(defaultCategory);
   const [priority, setPriority] = useState('Medium');
-  const [assignedTo, setAssignedTo] = useState(profiles[0]?.id || '');
+  const [assignedTo, setAssignedTo] = useState(profiles[0]?.full_name || profiles[0]?.username || '');
   const [dueDate, setDueDate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [toastMessage, setToastMessage] = useState(null);
 
   if (!isOpen) return null;
 
@@ -20,30 +20,34 @@ export default function CreateTaskModal({ isOpen, onClose, defaultCategory = 'ge
     if (!title.trim()) return;
 
     setIsSubmitting(true);
+    setToastMessage(null);
 
-    await createTask({
-      title,
-      description,
-      category,
-      task_type: category,
-      priority,
-      assigned_to: assignedTo || currentUser?.id,
-      due_date: dueDate || null
-    });
+    try {
+      await createTask({
+        title,
+        description,
+        priority,
+        assigned_to: assignedTo || (currentUser?.full_name || currentUser?.username),
+        due_date: dueDate || null
+      });
 
-    setIsSubmitting(false);
-    setTitle('');
-    setDescription('');
-    setDueDate('');
-    onClose();
+      setToastMessage({ type: 'success', text: 'Task assigned successfully!' });
+      setTitle('');
+      setDescription('');
+      setDueDate('');
+      
+      setTimeout(() => {
+        setToastMessage(null);
+        onClose();
+      }, 1500);
+
+    } catch (error) {
+      console.error(error);
+      setToastMessage({ type: 'error', text: error?.message || 'Failed to assign task' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
-
-  const categoryOptions = [
-    { id: 'daily', label: 'Daily Checklist', badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
-    { id: 'weekly', label: 'Weekly Goal', badge: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30' },
-    { id: 'hr', label: 'HR & Dept', badge: 'bg-pink-500/10 text-pink-400 border-pink-500/30' },
-    { id: 'general', label: 'General Task', badge: 'bg-slate-500/10 text-slate-400 border-slate-500/30' },
-  ];
 
   const priorityOptions = ['Low', 'Medium', 'High', 'Urgent'];
 
@@ -70,6 +74,14 @@ export default function CreateTaskModal({ isOpen, onClose, defaultCategory = 'ge
           </div>
         </div>
 
+        {toastMessage && (
+          <div className={`mb-4 p-3 rounded-xl text-xs font-bold ${
+            toastMessage.type === 'success' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+          }`}>
+            {toastMessage.text}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Title */}
           <div>
@@ -87,28 +99,7 @@ export default function CreateTaskModal({ isOpen, onClose, defaultCategory = 'ge
             />
           </div>
 
-          {/* Category Tabs */}
-          <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1.5">
-              Task Category
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {categoryOptions.map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setCategory(opt.id)}
-                  className={`py-2 px-2 rounded-xl text-xs font-semibold border transition-all text-center ${
-                    category === opt.id
-                      ? `${opt.badge} ring-2 ring-indigo-500/50 shadow-md font-bold`
-                      : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:bg-slate-800'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
+
 
           {/* Assignee & Priority */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -123,7 +114,7 @@ export default function CreateTaskModal({ isOpen, onClose, defaultCategory = 'ge
                 className="w-full rounded-xl glass-input px-3 py-2.5 text-xs text-slate-200 bg-slate-900 cursor-pointer"
               >
                 {profiles.map((p) => (
-                  <option key={p.id} value={p.id} className="bg-slate-900 text-slate-200">
+                  <option key={p.id} value={p.full_name || p.username} className="bg-slate-900 text-slate-200">
                     {p.full_name || p.username} ({p.department})
                   </option>
                 ))}

@@ -25,8 +25,7 @@ export default function ManagerDashboard() {
     profiles,
     metrics,
     currentUser,
-    selectedCategory,
-    setSelectedCategory,
+    isAdmin,
     selectedStatus,
     setSelectedStatus,
     selectedPriority,
@@ -36,19 +35,15 @@ export default function ManagerDashboard() {
   } = useTasks();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [modalCategory, setModalCategory] = useState('general');
 
   // Strictly filter tasks to ONLY the logged in user's assigned tasks
-  const myTasks = tasks.filter((t) => t.assigned_to === currentUser?.id);
+  const myTasks = tasks.filter((t) => t.assigned_to === (currentUser?.full_name || currentUser?.username));
 
-  // Filter tasks by category, status, priority, search
+  // Filter tasks by status, priority, search
   const filteredTasks = myTasks.filter((task) => {
-    const cat = (task.task_type || task.category || '').toLowerCase();
-    if (selectedCategory !== 'all' && cat !== selectedCategory.toLowerCase()) return false;
-    
-    const isDone = Boolean(task.is_completed);
-    if (selectedStatus === 'pending' && isDone) return false;
-    if (selectedStatus === 'completed' && !isDone) return false;
+    if (selectedStatus === 'pending' && task.status === 'done') return false;
+    if (selectedStatus === 'review' && task.status !== 'review') return false;
+    if (selectedStatus === 'completed' && task.status !== 'done') return false;
     
     if (selectedPriority !== 'all' && (task.priority || '').toLowerCase() !== selectedPriority.toLowerCase()) return false;
     
@@ -62,20 +57,13 @@ export default function ManagerDashboard() {
   });
 
   const myTotal = myTasks.length;
-  const myCompleted = myTasks.filter((t) => t.is_completed).length;
+  const myCompleted = myTasks.filter((t) => t.status === 'done').length;
   const myPending = myTotal - myCompleted;
   const myRate = myTotal > 0 ? Math.round((myCompleted / myTotal) * 100) : 0;
 
-  const categories = [
-    { id: 'all', label: 'My Tasks', icon: Layers, count: myTasks.length },
-    { id: 'daily', label: 'Daily Checklist', icon: Clock, count: myTasks.filter(t => (t.task_type || t.category) === 'daily').length },
-    { id: 'weekly', label: 'Weekly Goals', icon: Calendar, count: myTasks.filter(t => (t.task_type || t.category) === 'weekly').length },
-    { id: 'hr', label: 'HR & Dept', icon: HeartHandshake, count: myTasks.filter(t => (t.task_type || t.category) === 'hr').length },
-    { id: 'general', label: 'General Tasks', icon: Sparkles, count: myTasks.filter(t => (t.task_type || t.category) === 'general').length },
-  ];
+  const allReviewTasks = tasks.filter(t => t.status === 'review');
 
-  const handleOpenCreate = (category = 'general') => {
-    setModalCategory(category);
+  const handleOpenCreate = () => {
     setIsCreateModalOpen(true);
   };
 
@@ -102,15 +90,14 @@ export default function ManagerDashboard() {
           {/* Action Buttons */}
           <div className="flex items-center gap-3">
             <button
-              onClick={() => handleOpenCreate('daily')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-200 transition-all shadow-sm"
-            >
-              <Clock size={14} className="text-emerald-400" />
-              + Daily Task
-            </button>
-            <button
-              onClick={() => handleOpenCreate('general')}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-xs font-bold text-white transition-all shadow-lg shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.98]"
+              onClick={() => handleOpenCreate()}
+              disabled={!isAdmin}
+              title={!isAdmin ? "Only HR/Admin can assign tasks" : ""}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-lg ${
+                isAdmin 
+                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.98]'
+                  : 'bg-slate-700 opacity-50 cursor-not-allowed'
+              }`}
             >
               <Plus size={16} className="stroke-[3]" />
               Assign New Task
@@ -157,37 +144,32 @@ export default function ManagerDashboard() {
         <TeamProgressGrid />
       </div>
 
+      {/* Awaiting Approval Section (For HR/Admin) */}
+      {isAdmin && allReviewTasks.length > 0 && (
+        <div className="space-y-4 mb-8">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-500/30 pb-3">
+            <h3 className="text-lg font-bold text-amber-400 flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+              </span>
+              Awaiting HR Approval ({allReviewTasks.length})
+            </h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            {allReviewTasks.map((task) => (
+              <TaskCard key={`review-${task.id}`} task={task} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Task Filters & Feed */}
       <div className="space-y-4">
-        {/* Category Tabs */}
+        {/* Status Tab (previously Categories) */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
           <div className="flex flex-wrap items-center gap-2">
-            {categories.map((cat) => {
-              const Icon = cat.icon;
-              const isActive = selectedCategory === cat.id;
-
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-                    isActive
-                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/25 scale-[1.02]'
-                      : 'bg-slate-900/80 hover:bg-slate-800 text-slate-300 border border-slate-800'
-                  }`}
-                >
-                  <Icon size={14} />
-                  <span>{cat.label}</span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                      isActive ? 'bg-indigo-800/60 text-white' : 'bg-slate-800 text-slate-400'
-                    }`}
-                  >
-                    {cat.count}
-                  </span>
-                </button>
-              );
-            })}
+            <h3 className="text-lg font-bold text-white">Tasks Overview</h3>
           </div>
 
           <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -218,6 +200,7 @@ export default function ManagerDashboard() {
             >
               <option value="all">All Statuses ({myTotal})</option>
               <option value="pending">Pending Only ({myPending})</option>
+              <option value="review">In Review (Awaiting HR)</option>
               <option value="completed">Completed Only ({myCompleted})</option>
             </select>
 
@@ -247,8 +230,12 @@ export default function ManagerDashboard() {
               No tasks currently match your filter criteria. Click below to assign a new task.
             </p>
             <button
-              onClick={() => handleOpenCreate('daily')}
-              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-500 transition-colors shadow-md"
+              onClick={() => handleOpenCreate()}
+              disabled={!isAdmin}
+              title={!isAdmin ? "Only HR/Admin can assign tasks" : ""}
+              className={`mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-xs font-bold transition-colors shadow-md ${
+                isAdmin ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-slate-700 opacity-50 cursor-not-allowed'
+              }`}
             >
               <Plus size={14} />
               Assign Task Now
@@ -266,7 +253,6 @@ export default function ManagerDashboard() {
       {/* Create Modal */}
       <CreateTaskModal
         isOpen={isCreateModalOpen}
-        defaultCategory={modalCategory}
         onClose={() => setIsCreateModalOpen(false)}
       />
     </div>

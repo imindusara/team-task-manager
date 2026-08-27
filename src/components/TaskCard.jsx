@@ -14,37 +14,13 @@ import TaskCompletionModal from './TaskCompletionModal';
 import { getDepartmentBadge } from '../lib/demoData';
 
 export default function TaskCard({ task }) {
-  const { profiles, toggleTaskStatus, deleteTask, updateTask, isAdmin } = useTasks();
+  const { profiles, toggleTaskStatus, deleteTask, updateTask, isAdmin, approveTask, rejectTask } = useTasks();
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
 
   const assignedProfile = profiles.find((p) => p.id === task.assigned_to);
-  const isCompleted = Boolean(task.is_completed);
+  const isCompleted = task.status === 'done';
+  const isPendingApproval = task.status === 'review';
 
-  // Category Theme Details
-  const getCategoryTheme = (type) => {
-    switch (type?.toLowerCase()) {
-      case 'daily':
-        return {
-          label: 'Daily Checklist',
-          badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-        };
-      case 'weekly':
-        return {
-          label: 'Weekly Goal',
-          badge: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
-        };
-      case 'hr':
-        return {
-          label: 'HR & Dept',
-          badge: 'bg-pink-500/15 text-pink-300 border-pink-500/30'
-        };
-      default:
-        return {
-          label: 'General Task',
-          badge: 'bg-slate-700/40 text-slate-300 border-slate-600/40'
-        };
-    }
-  };
 
   // Priority Theme Details
   const getPriorityTheme = (prio) => {
@@ -108,7 +84,6 @@ export default function TaskCard({ task }) {
     }
   };
 
-  const catTheme = getCategoryTheme(task.task_type || task.category);
   const prioTheme = getPriorityTheme(task.priority);
   const dueInfo = getDueDateInfo();
 
@@ -127,6 +102,8 @@ export default function TaskCard({ task }) {
         className={`group relative rounded-2xl p-4 transition-all duration-200 border ${
           isCompleted
             ? 'bg-slate-900/40 border-slate-800/60 opacity-80'
+            : isPendingApproval
+            ? 'bg-slate-900/80 border-amber-500/30 hover:bg-slate-900 hover:border-amber-500/50 shadow-lg shadow-amber-500/5'
             : 'bg-slate-900/80 hover:bg-slate-900 border-slate-800 hover:border-slate-700/80 shadow-lg shadow-black/20 hover:shadow-indigo-500/5'
         }`}
       >
@@ -135,10 +112,13 @@ export default function TaskCard({ task }) {
           <button
             type="button"
             onClick={handleCheckboxClick}
+            disabled={(!isAdmin && isCompleted) || (!isAdmin && isPendingApproval)}
             aria-label={isCompleted ? 'Mark task as incomplete' : 'Mark task as complete'}
             className={`mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-200 border ${
               isCompleted
                 ? 'bg-emerald-500 border-emerald-400 text-slate-950 shadow-md shadow-emerald-500/20 scale-105'
+                : isPendingApproval
+                ? 'bg-amber-500 border-amber-400 text-slate-950 shadow-md shadow-amber-500/20 scale-105 opacity-80 cursor-not-allowed'
                 : 'bg-slate-950/60 border-slate-700 text-transparent hover:border-indigo-500 hover:text-indigo-400 hover:bg-indigo-950/40'
             }`}
           >
@@ -149,14 +129,16 @@ export default function TaskCard({ task }) {
           <div className="flex-1 min-w-0">
             {/* Header: Badges & Due Date */}
             <div className="flex flex-wrap items-center gap-2 mb-1.5">
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${catTheme.badge}`}>
-                {catTheme.label}
-              </span>
-
               <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border flex items-center gap-1 ${prioTheme.badge}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${prioTheme.dot}`} />
                 {prioTheme.label}
               </span>
+
+              {isPendingApproval && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/30 animate-pulse">
+                  Pending HR Approval
+                </span>
+              )}
 
               {dueInfo && (
                 <span className={`text-[11px] flex items-center gap-1 ${dueInfo.className}`}>
@@ -240,6 +222,25 @@ export default function TaskCard({ task }) {
 
               {/* Action Buttons */}
               <div className="flex items-center gap-1">
+                {isAdmin && isPendingApproval && (
+                  <div className="flex items-center gap-1 mr-2">
+                    <button
+                      type="button"
+                      onClick={() => approveTask(task.id)}
+                      className="px-2 py-1 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 hover:text-emerald-300 rounded-md text-[10px] font-bold transition-colors border border-emerald-500/30"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => rejectTask(task.id)}
+                      className="px-2 py-1 bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 hover:text-rose-300 rounded-md text-[10px] font-bold transition-colors border border-rose-500/30"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                )}
+
                 {/* Add/Edit Note */}
                 <button
                   type="button"

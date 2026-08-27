@@ -4,10 +4,11 @@ import Navbar from './components/Navbar';
 import LoginView from './components/LoginView';
 import ManagerDashboard from './components/ManagerDashboard';
 import StaffDashboard from './components/StaffDashboard';
+import CalendarView from './components/CalendarView';
 import { ShieldCheck } from 'lucide-react';
 
 function DashboardView() {
-  const { currentUser, authLoading, isAdmin } = useTasks();
+  const { currentUser, authLoading, isAdmin, currentView } = useTasks();
 
   if (authLoading) {
     return (
@@ -28,7 +29,9 @@ function DashboardView() {
         <Navbar />
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-          {isAdmin ? (
+          {currentView === 'calendar' ? (
+            <CalendarView />
+          ) : isAdmin ? (
             <ManagerDashboard />
           ) : (
             <StaffDashboard />

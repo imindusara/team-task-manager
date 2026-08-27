@@ -21,8 +21,6 @@ export default function StaffDashboard() {
     currentUser,
     tasks,
     isAdmin,
-    selectedCategory,
-    setSelectedCategory,
     selectedStatus,
     setSelectedStatus,
     searchQuery,
@@ -30,18 +28,14 @@ export default function StaffDashboard() {
   } = useTasks();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [modalCategory, setModalCategory] = useState('daily');
 
   // Filter tasks assigned to current member
-  const myAllTasks = tasks.filter((t) => t.assigned_to === currentUser?.id);
+  const myAllTasks = tasks.filter((t) => t.assigned_to === (currentUser?.full_name || currentUser?.username));
 
   const filteredTasks = myAllTasks.filter((task) => {
-    const cat = (task.task_type || task.category || '').toLowerCase();
-    if (selectedCategory !== 'all' && cat !== selectedCategory.toLowerCase()) return false;
-    
-    const isDone = Boolean(task.is_completed);
-    if (selectedStatus === 'pending' && isDone) return false;
-    if (selectedStatus === 'completed' && !isDone) return false;
+    if (selectedStatus === 'pending' && task.status === 'done') return false;
+    if (selectedStatus === 'review' && task.status !== 'review') return false;
+    if (selectedStatus === 'completed' && task.status !== 'done') return false;
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -53,17 +47,9 @@ export default function StaffDashboard() {
   });
 
   const totalMyTasks = myAllTasks.length;
-  const completedMyTasks = myAllTasks.filter((t) => t.is_completed).length;
+  const completedMyTasks = myAllTasks.filter((t) => t.status === 'done').length;
   const pendingMyTasks = totalMyTasks - completedMyTasks;
   const rate = totalMyTasks > 0 ? Math.round((completedMyTasks / totalMyTasks) * 100) : 0;
-
-  const categories = [
-    { id: 'all', label: 'All My Tasks', icon: Layers, count: myAllTasks.length },
-    { id: 'daily', label: 'Daily Checklist', icon: Clock, count: myAllTasks.filter(t => (t.task_type || t.category) === 'daily').length },
-    { id: 'weekly', label: 'Weekly Goals', icon: Calendar, count: myAllTasks.filter(t => (t.task_type || t.category) === 'weekly').length },
-    { id: 'hr', label: 'HR & Dept', icon: HeartHandshake, count: myAllTasks.filter(t => (t.task_type || t.category) === 'hr').length },
-    { id: 'general', label: 'General', icon: Sparkles, count: myAllTasks.filter(t => (t.task_type || t.category) === 'general').length },
-  ];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -101,16 +87,20 @@ export default function StaffDashboard() {
             </div>
           </div>
 
-          {/* Quick Add Button if Admin */}
-          {isAdmin && (
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white transition-all shadow-lg shadow-emerald-600/25 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Plus size={16} className="stroke-[3]" />
-              + Add Task
-            </button>
-          )}
+          {/* Quick Add Button */}
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            disabled={!isAdmin}
+            title={!isAdmin ? "Only HR/Admin can assign tasks" : ""}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-lg ${
+              isAdmin 
+                ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/25 hover:scale-[1.02] active:scale-[0.98]'
+                : 'bg-slate-700 opacity-50 cursor-not-allowed'
+            }`}
+          >
+            <Plus size={16} className="stroke-[3]" />
+            + Add Task
+          </button>
         </div>
 
         {/* Individual Progress Bar */}
@@ -158,32 +148,7 @@ export default function StaffDashboard() {
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
           <div className="flex flex-wrap items-center gap-2">
-            {categories.map((cat) => {
-              const Icon = cat.icon;
-              const isActive = selectedCategory === cat.id;
-
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-                    isActive
-                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/25 scale-[1.02]'
-                      : 'bg-slate-900/80 hover:bg-slate-800 text-slate-300 border border-slate-800'
-                  }`}
-                >
-                  <Icon size={14} />
-                  <span>{cat.label}</span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                      isActive ? 'bg-indigo-800/60 text-white' : 'bg-slate-800 text-slate-400'
-                    }`}
-                  >
-                    {cat.count}
-                  </span>
-                </button>
-              );
-            })}
+            <h3 className="text-lg font-bold text-white">Tasks Overview</h3>
           </div>
 
           <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -213,6 +178,7 @@ export default function StaffDashboard() {
             >
               <option value="all">All Statuses ({totalMyTasks})</option>
               <option value="pending">Pending Only ({pendingMyTasks})</option>
+              <option value="review">In Review (Awaiting HR)</option>
               <option value="completed">Completed Only ({completedMyTasks})</option>
             </select>
           </div>
@@ -246,7 +212,6 @@ export default function StaffDashboard() {
       {isAdmin && (
         <CreateTaskModal
           isOpen={isCreateModalOpen}
-          defaultCategory={modalCategory}
           onClose={() => setIsCreateModalOpen(false)}
         />
       )}

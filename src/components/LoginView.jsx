@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   CheckSquare, 
   Lock, 
@@ -23,6 +23,7 @@ export default function LoginView() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const passwordRef = useRef(null);
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
@@ -53,8 +54,11 @@ export default function LoginView() {
 
   const handleQuickFill = (username) => {
     setIdentifier(username);
-    setPassword(username === 'ashan' ? 'Ashan@Password123' : 'password123');
+    setPassword('');
     setErrorMsg('');
+    if (passwordRef.current) {
+      passwordRef.current.focus();
+    }
   };
 
   const teamList = profiles && profiles.length > 0 ? profiles : TEAM_MEMBERS;
@@ -117,6 +121,7 @@ export default function LoginView() {
               <div className="relative">
                 <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
+                  ref={passwordRef}
                   type={showPassword ? 'text' : 'password'}
                   required
                   value={password}

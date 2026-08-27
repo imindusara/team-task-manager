@@ -19,11 +19,15 @@ export const TaskProvider = ({ children }) => {
   const [lastSyncTime, setLastSyncTime] = useState(new Date());
 
   // Filter states
-  const [selectedCategory, setSelectedCategory] = useState('all'); // all, daily, weekly, hr, general
   const [selectedStatus, setSelectedStatus] = useState('all'); // all, pending, completed
   const [selectedPriority, setSelectedPriority] = useState('all'); // all, Urgent, High, Medium, Low
   const [selectedAssignee, setSelectedAssignee] = useState('mine'); // 'mine' (current user only), 'all', or profile id
   const [searchQuery, setSearchQuery] = useState('');
+
+  // View & Calendar states
+  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard' or 'calendar'
+  const [events, setEvents] = useState([]);
+  const [leaves, setLeaves] = useState([]);
 
   // 1. Fetch profiles strictly from public.profiles
   const fetchProfiles = useCallback(async () => {
@@ -63,8 +67,7 @@ export const TaskProvider = ({ children }) => {
       if (!error && data) {
         const normalized = data.map(t => ({
           ...t,
-          category: t.task_type || t.category || 'general',
-          status: t.is_completed ? 'completed' : 'pending'
+          status: t.status || 'todo'
         }));
         setTasks(normalized);
         setLastSyncTime(new Date());
@@ -75,6 +78,25 @@ export const TaskProvider = ({ children }) => {
       console.error('Task fetch exception:', err);
     } finally {
       setLoadingTasks(false);
+    }
+  }, []);
+
+  // 2b. Fetch Events and Leaves
+  const fetchEvents = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from('team_events').select('*');
+      if (!error && data) setEvents(data);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
+  const fetchLeaves = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from('team_leaves').select('*');
+      if (!error && data) setLeaves(data);
+    } catch (err) {
+      console.error(err);
     }
   }, []);
 
@@ -111,9 +133,9 @@ export const TaskProvider = ({ children }) => {
               }
             }
           }
-            }
-          }
           await fetchTasks();
+          await fetchEvents();
+          await fetchLeaves();
         }
       } catch (err) {
         console.error('Auth initialization error:', err);
@@ -139,6 +161,8 @@ export const TaskProvider = ({ children }) => {
         if (matched) {
           setCurrentUser(matched);
           fetchTasks();
+          fetchEvents();
+          fetchLeaves();
         } else {
           // User authenticated but not authorized in profiles table
           setCurrentUser(null);
@@ -168,15 +192,13 @@ export const TaskProvider = ({ children }) => {
           if (payload.eventType === 'INSERT') {
             const normalized = {
               ...payload.new,
-              category: payload.new.task_type || payload.new.category || 'general',
-              status: payload.new.is_completed ? 'completed' : 'pending'
+              status: payload.new.status || 'todo'
             };
             setTasks(prev => [normalized, ...prev.filter(t => t.id !== normalized.id)]);
           } else if (payload.eventType === 'UPDATE') {
             const normalized = {
               ...payload.new,
-              category: payload.new.task_type || payload.new.category || 'general',
-              status: payload.new.is_completed ? 'completed' : 'pending'
+              status: payload.new.status || 'todo'
             };
             setTasks(prev => prev.map(t => (t.id === normalized.id ? normalized : t)));
           } else if (payload.eventType === 'DELETE') {
@@ -189,6 +211,32 @@ export const TaskProvider = ({ children }) => {
         { event: '*', schema: 'public', table: 'profiles' },
         () => {
           fetchProfiles();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'team_events' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setEvents(prev => [...prev, payload.new]);
+          } else if (payload.eventType === 'UPDATE') {
+            setEvents(prev => prev.map(e => e.id === payload.new.id ? payload.new : e));
+          } else if (payload.eventType === 'DELETE') {
+            setEvents(prev => prev.filter(e => e.id !== payload.old.id));
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'team_leaves' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setLeaves(prev => [...prev, payload.new]);
+          } else if (payload.eventType === 'UPDATE') {
+            setLeaves(prev => prev.map(l => l.id === payload.new.id ? payload.new : l));
+          } else if (payload.eventType === 'DELETE') {
+            setLeaves(prev => prev.filter(l => l.id !== payload.old.id));
+          }
         }
       )
       .subscribe((status) => {
@@ -304,22 +352,27 @@ export const TaskProvider = ({ children }) => {
   };
 
   // 7. Toggle Task Status (Checkbox Tick)
-  const toggleTaskStatus = useCallback(async (taskId, note = '') => {
+  const toggleTaskStatus = useCallback(async (taskId) => {
     const currentTask = tasks.find(t => t.id === taskId);
     if (!currentTask) return;
 
-    const nextIsCompleted = !currentTask.is_completed;
-    const nowIso = new Date().toISOString();
+    let nextStatus = currentTask.status;
+
+    // Role-based logic
+    if (isAdmin) {
+      nextStatus = currentTask.status === 'done' ? 'todo' : 'done';
+    } else {
+      // Non-admins cannot toggle 'done' tasks
+      if (currentTask.status === 'done') return;
+      nextStatus = currentTask.status === 'review' ? 'todo' : 'review';
+    }
 
     const updatedTask = {
       ...currentTask,
-      is_completed: nextIsCompleted,
-      status: nextIsCompleted ? 'completed' : 'pending',
-      completed_at: nextIsCompleted ? nowIso : null,
-      completion_note: nextIsCompleted ? (note || currentTask.completion_note || '') : ''
+      status: nextStatus
     };
 
-    if (nextIsCompleted) {
+    if (nextStatus === 'done' || nextStatus === 'review') {
       triggerConfetti();
     }
 
@@ -331,9 +384,7 @@ export const TaskProvider = ({ children }) => {
       const { error } = await supabase
         .from('tasks')
         .update({
-          is_completed: nextIsCompleted,
-          completed_at: nextIsCompleted ? nowIso : null,
-          completion_note: updatedTask.completion_note
+          status: nextStatus
         })
         .eq('id', taskId);
 
@@ -345,19 +396,14 @@ export const TaskProvider = ({ children }) => {
     }
   }, [tasks, triggerConfetti]);
 
-  // 8. Create Task
   const createTask = useCallback(async (taskData) => {
     const payload = {
       title: taskData.title.trim(),
       description: (taskData.description || '').trim() || null,
-      task_type: taskData.category || taskData.task_type || 'general',
-      priority: taskData.priority || 'Medium',
-      assigned_to: taskData.assigned_to || currentUser?.id,
-      created_by: currentUser?.id || null,
-      is_completed: false,
-      due_date: taskData.due_date ? new Date(taskData.due_date).toISOString() : null,
-      completed_at: null,
-      completion_note: null
+      priority: (taskData.priority || 'medium').toLowerCase(),
+      assigned_to: taskData.assigned_to || (currentUser?.full_name || currentUser?.username),
+      status: 'todo',
+      due_date: taskData.due_date ? new Date(taskData.due_date).toISOString() : null
     };
 
     try {
@@ -369,17 +415,18 @@ export const TaskProvider = ({ children }) => {
       if (!error && data && data[0]) {
         const created = {
           ...data[0],
-          category: data[0].task_type,
-          status: 'pending'
+          status: data[0].status || 'todo'
         };
         setTasks(prev => [created, ...prev.filter(t => t.id !== created.id)]);
         setLastSyncTime(new Date());
         return created;
       } else if (error) {
         console.error('Error creating task in Supabase:', error);
+        throw error;
       }
     } catch (err) {
       console.error('Create task exception:', err);
+      throw err;
     }
   }, [currentUser]);
 
@@ -415,20 +462,32 @@ export const TaskProvider = ({ children }) => {
   // Role permissions
   const isAdmin = useMemo(() => {
     if (!currentUser) return false;
-    return currentUser.role === 'admin' || currentUser.department === 'HR';
+    return currentUser.role === 'admin' || currentUser.department === 'HR' || currentUser.role === 'HR';
   }, [currentUser]);
+
+  // Approve / Reject workflows (HR/Admin only)
+  const approveTask = useCallback(async (taskId) => {
+    if (!isAdmin) return;
+    updateTask(taskId, { status: 'done', completed_at: new Date().toISOString() });
+    triggerConfetti();
+  }, [isAdmin, updateTask, triggerConfetti]);
+
+  const rejectTask = useCallback(async (taskId) => {
+    if (!isAdmin) return;
+    updateTask(taskId, { status: 'todo' });
+  }, [isAdmin, updateTask]);
 
   // Metrics calculation
   const metrics = useMemo(() => {
     const total = tasks.length;
-    const completed = tasks.filter(t => t.is_completed).length;
+    const completed = tasks.filter(t => t.status === 'done').length;
     const pending = total - completed;
     const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
 
     const memberStats = profiles.map(member => {
-      const memberTasks = tasks.filter(t => t.assigned_to === member.id);
+      const memberTasks = tasks.filter(t => t.assigned_to === (member.full_name || member.username));
       const mTotal = memberTasks.length;
-      const mCompleted = memberTasks.filter(t => t.is_completed).length;
+      const mCompleted = memberTasks.filter(t => t.status === 'done').length;
       const mPending = mTotal - mCompleted;
       const mRate = mTotal > 0 ? Math.round((mCompleted / mTotal) * 100) : 0;
 
@@ -450,6 +509,131 @@ export const TaskProvider = ({ children }) => {
     };
   }, [tasks, profiles]);
 
+  // Supabase Calendar Actions
+  const createEvent = useCallback(async (payload) => {
+    try {
+      const { data, error } = await supabase.from('team_events').insert([payload]).select();
+      if (error) throw error;
+      if (data) setEvents(prev => [...prev, data[0]]);
+    } catch (err) { console.error('Error creating event:', err); }
+  }, []);
+
+  const requestLeave = useCallback(async (payload) => {
+    try {
+      const { data, error } = await supabase.from('team_leaves').insert([payload]).select();
+      if (error) throw error;
+      if (data) setLeaves(prev => [...prev, data[0]]);
+    } catch (err) { console.error('Error requesting leave:', err); }
+  }, []);
+
+  const updateLeaveStatus = useCallback(async (leaveId, status) => {
+    try {
+      const { error } = await supabase.from('team_leaves').update({ status }).eq('id', leaveId);
+      if (error) throw error;
+      setLeaves(prev => prev.map(l => l.id === leaveId ? { ...l, status } : l));
+    } catch (err) { console.error('Error updating leave:', err); }
+  }, []);
+
+  // AI HR Report Generation
+  const generateAIReport = useCallback(async () => {
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) throw new Error("VITE_GEMINI_API_KEY is not configured in the environment.");
+    
+    const payload = {
+      metrics,
+      upcomingEvents: events.filter(e => new Date(e.date || e.event_date || e.created_at) >= new Date().setHours(0,0,0,0)),
+      teamProfiles: profiles.map(p => ({ name: p.full_name, role: p.role, department: p.department }))
+    };
+
+    const prompt = `You are an expert HR Director. Analyze this team's monthly operational data and write a formal, data-driven Executive HR Report for an upcoming company board meeting. Include:
+1. Executive Overview & Operational Health
+2. Departmental & Individual Productivity Breakdown (Strengths & Areas of Improvement)
+3. Workflow Bottlenecks & Approval Delays
+4. Strategic Recommendations for Next Month's Management Strategy.
+
+Here is the raw JSON data:
+${JSON.stringify(payload, null, 2)}`;
+
+    const endpoints = [
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`
+    ];
+
+    let lastError = null;
+    let data = null;
+
+    for (const endpoint of endpoints) {
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }]
+          })
+        });
+
+        const jsonData = await response.json();
+        
+        if (!response.ok) {
+          lastError = new Error(jsonData.error?.message || 'Failed to generate report');
+          // If it's a 404 or server error, we continue to the next fallback.
+          // If it's auth/quota, we might still want to try just in case, or break.
+          // Let's keep it simple and just try the next one on any failure.
+          continue;
+        }
+
+        data = jsonData;
+        break; // Success!
+      } catch (err) {
+        lastError = err;
+        continue;
+      }
+    }
+
+    if (!data) {
+      console.error(lastError);
+      throw lastError || new Error("Failed to generate report from all endpoints.");
+    }
+
+    try {
+      const reportContent = data.candidates[0].content.parts[0].text;
+      
+      // Auto-save the generated report into the hr_reports table
+      try {
+        await supabase.from('hr_reports').insert([{
+          report_content: reportContent,
+          generated_by: currentUser?.id,
+          created_at: new Date().toISOString()
+        }]);
+      } catch (insertErr) {
+        console.error("Failed to auto-save report:", insertErr);
+      }
+
+      return reportContent;
+    } catch (err) {
+      console.error("Error parsing Gemini response:", err);
+      throw new Error("Received invalid format from Gemini API.");
+    }
+  }, [metrics, events, profiles, currentUser]);
+
+  // Unified Calendar Events for UI
+  const calendarEventsComputed = useMemo(() => {
+    const evts = events.map(e => ({
+      ...e,
+      date: e.date || e.event_date || e.created_at,
+    }));
+    const lvs = leaves.map(l => ({
+      id: l.id,
+      title: 'Leave',
+      type: 'leave',
+      date: l.start_date || l.date || l.created_at,
+      assignee_id: l.profile_id || l.assignee_id,
+      status: l.status || 'pending'
+    }));
+    return [...evts, ...lvs];
+  }, [events, leaves]);
+
   const value = {
     session,
     currentUser,
@@ -461,8 +645,6 @@ export const TaskProvider = ({ children }) => {
     isRealtimeLive,
     lastSyncTime,
     isAdmin,
-    selectedCategory,
-    setSelectedCategory,
     selectedStatus,
     setSelectedStatus,
     selectedPriority,
@@ -474,11 +656,22 @@ export const TaskProvider = ({ children }) => {
     login,
     logout,
     toggleTaskStatus,
+    approveTask,
+    rejectTask,
     createTask,
     updateTask,
     deleteTask,
     fetchTasks,
-    metrics
+    metrics,
+    currentView,
+    setCurrentView,
+    calendarEvents: calendarEventsComputed,
+    leaves,
+    events,
+    createEvent,
+    requestLeave,
+    updateLeaveStatus,
+    generateAIReport
   };
 
   return (

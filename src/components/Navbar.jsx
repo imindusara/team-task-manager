@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTasks } from '../context/TaskContext';
 import CreateTaskModal from './CreateTaskModal';
+import AIReportModal from './AIReportModal';
 import { 
   CheckSquare, 
   Plus, 
@@ -17,11 +18,14 @@ export default function Navbar() {
     currentUser, 
     isAdmin, 
     logout, 
-    isRealtimeLive 
+    isRealtimeLive,
+    currentView,
+    setCurrentView
   } = useTasks();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
 
   return (
     <>
@@ -72,8 +76,18 @@ export default function Navbar() {
               </span>
             </div>
 
-            {/* Admin: + New Task Button */}
-            {isAdmin && (
+            {/* Back to Dashboard Button (When in Calendar) */}
+            {currentView === 'calendar' && (
+              <button
+                onClick={() => setCurrentView('dashboard')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition-colors border border-slate-700"
+              >
+                Back to Dashboard
+              </button>
+            )}
+
+            {/* + New Task Button */}
+            {(currentUser?.role === 'HR' || currentUser?.role === 'admin' || currentUser?.role === 'Admin') && (
               <button
                 onClick={() => setIsCreateModalOpen(true)}
                 className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-xs font-bold text-white transition-all shadow-md shadow-indigo-600/25 hover:scale-105 active:scale-95"
@@ -128,7 +142,7 @@ export default function Navbar() {
               {/* Profile Menu Dropdown */}
               {isUserMenuOpen && (
                 <div 
-                  className="absolute right-0 mt-2 w-60 rounded-2xl glass-panel p-2 shadow-2xl border border-slate-700 z-50 animate-slide-up"
+                  className="absolute right-0 mt-2 w-64 rounded-2xl bg-[#131722] p-2 shadow-2xl border border-slate-700/60 z-[999] animate-slide-up"
                   onMouseLeave={() => setIsUserMenuOpen(false)}
                 >
                   <div className="px-3 py-2 border-b border-slate-800/80 mb-2">
@@ -141,6 +155,45 @@ export default function Navbar() {
                     <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded mt-1.5 border ${getDepartmentBadge(currentUser?.department)}`}>
                       {currentUser?.department} &bull; {currentUser?.role}
                     </span>
+                  </div>
+
+                  {/* Navigation Links */}
+                  <div className="space-y-1 mb-2 border-b border-slate-800/80 pb-2">
+                    <button
+                      onClick={() => {
+                        setCurrentView('calendar');
+                        setIsUserMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-indigo-400 hover:bg-slate-800/80 transition-colors"
+                    >
+                      📅 Team Calendar & Leaves
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCurrentView('calendar');
+                        setIsUserMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-amber-400 hover:bg-slate-800/80 transition-colors"
+                    >
+                      🔔 Special Reminders
+                    </button>
+                    <button
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-slate-100 hover:bg-slate-800/80 transition-colors"
+                    >
+                      👤 Profile Settings
+                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          setIsAIModalOpen(true);
+                          setIsUserMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-emerald-300 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                      >
+                        ✨ Generate AI HR Report
+                      </button>
+                    )}
                   </div>
 
                   <button
@@ -166,13 +219,15 @@ export default function Navbar() {
         </div>
       </header>
 
-      {/* Create Task Modal */}
-      {isAdmin && (
-        <CreateTaskModal
-          isOpen={isCreateModalOpen}
-          onClose={() => setIsCreateModalOpen(false)}
-        />
-      )}
+      <CreateTaskModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+      />
+
+      <AIReportModal
+        isOpen={isAIModalOpen}
+        onClose={() => setIsAIModalOpen(false)}
+      />
     </>
   );
 }
