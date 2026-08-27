@@ -6,7 +6,7 @@ export const TEAM_MEMBERS = [
     email: 'ashan@company.com',
     department: 'HR',
     role: 'admin',
-    avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    avatar_url: '/Ashan.png',
     color: '#6366f1'
   },
   {
@@ -16,7 +16,7 @@ export const TEAM_MEMBERS = [
     email: 'widura@company.com',
     department: 'HR',
     role: 'admin',
-    avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+    avatar_url: '/widura.png',
     color: '#8b5cf6'
   },
   {
@@ -26,7 +26,7 @@ export const TEAM_MEMBERS = [
     email: 'sahan@company.com',
     department: 'Financial',
     role: 'member',
-    avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+    avatar_url: '/sahan.png',
     color: '#10b981'
   },
   {
@@ -36,7 +36,7 @@ export const TEAM_MEMBERS = [
     email: 'sadeepa@company.com',
     department: 'Production team',
     role: 'member',
-    avatar_url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
+    avatar_url: '/sadeepa.png',
     color: '#06b6d4'
   },
   {
@@ -46,7 +46,7 @@ export const TEAM_MEMBERS = [
     email: 'pulasthi@company.com',
     department: 'Production team',
     role: 'member',
-    avatar_url: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=150&auto=format&fit=crop&q=80',
+    avatar_url: '/pulasthi.png',
     color: '#3b82f6'
   },
   {
@@ -56,7 +56,7 @@ export const TEAM_MEMBERS = [
     email: 'subodha@company.com',
     department: 'Marketing',
     role: 'member',
-    avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
+    avatar_url: '/subodha.png',
     color: '#ec4899'
   }
 ];
