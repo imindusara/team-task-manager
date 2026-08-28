@@ -17,7 +17,13 @@ export default function TaskCard({ task }) {
   const { profiles, toggleTaskStatus, deleteTask, updateTask, isAdmin, approveTask, rejectTask } = useTasks();
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
 
-  const assignedProfile = profiles.find((p) => p.id === task.assigned_to);
+  const assignedProfile = profiles.find((p) => 
+    p.id === task.assigned_to || 
+    p.full_name?.toLowerCase() === task.assigned_to?.toLowerCase() ||
+    p.username?.toLowerCase() === task.assigned_to?.toLowerCase() ||
+    task.assigned_to?.toLowerCase().includes(p.username?.toLowerCase()) ||
+    task.assigned_to?.toLowerCase().includes(p.full_name?.toLowerCase())
+  );
   const isCompleted = task.status === 'done';
   const isPendingApproval = task.status === 'review';
 

@@ -2,6 +2,9 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import confetti from 'canvas-confetti';
 import { supabase } from '../lib/supabase';
 import { TEAM_MEMBERS } from '../lib/demoData';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || '');
 
 const TaskContext = createContext(null);
 
@@ -468,14 +471,48 @@ export const TaskProvider = ({ children }) => {
   // Approve / Reject workflows (HR/Admin only)
   const approveTask = useCallback(async (taskId) => {
     if (!isAdmin) return;
-    updateTask(taskId, { status: 'done', completed_at: new Date().toISOString() });
-    triggerConfetti();
-  }, [isAdmin, updateTask, triggerConfetti]);
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ status: 'done' })
+        .eq('id', taskId);
+
+      if (error) {
+        console.error("Failed to approve task in Supabase:", error);
+        alert("Failed to update database: " + error.message);
+        return;
+      }
+
+      setTasks(prev => prev.map(t => (t.id === taskId ? { ...t, status: 'done' } : t)));
+      setLastSyncTime(new Date());
+      triggerConfetti();
+    } catch (err) {
+      console.error("Exception in approveTask:", err);
+      alert("Failed to update database: " + err.message);
+    }
+  }, [isAdmin, triggerConfetti]);
 
   const rejectTask = useCallback(async (taskId) => {
     if (!isAdmin) return;
-    updateTask(taskId, { status: 'todo' });
-  }, [isAdmin, updateTask]);
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ status: 'todo' })
+        .eq('id', taskId);
+
+      if (error) {
+        console.error("Failed to reject task in Supabase:", error);
+        alert("Failed to update database: " + error.message);
+        return;
+      }
+
+      setTasks(prev => prev.map(t => (t.id === taskId ? { ...t, status: 'todo' } : t)));
+      setLastSyncTime(new Date());
+    } catch (err) {
+      console.error("Exception in rejectTask:", err);
+      alert("Failed to update database: " + err.message);
+    }
+  }, [isAdmin]);
 
   // Metrics calculation
   const metrics = useMemo(() => {
@@ -534,10 +571,81 @@ export const TaskProvider = ({ children }) => {
     } catch (err) { console.error('Error updating leave:', err); }
   }, []);
 
+  // Local Executive Report Fallback Generator
+  const generateLocalExecutiveReport = (payload) => {
+    const { metrics, upcomingEvents, teamProfiles } = payload;
+    
+    // Department-wise stats aggregation
+    const deptStats = {};
+    metrics.memberStats.forEach(member => {
+      const dept = member.department || 'General';
+      if (!deptStats[dept]) {
+        deptStats[dept] = { total: 0, completed: 0, pending: 0, members: [] };
+      }
+      deptStats[dept].total += member.totalTasks;
+      deptStats[dept].completed += member.completedTasks;
+      deptStats[dept].pending += member.pendingTasks;
+      deptStats[dept].members.push(member.full_name || member.username);
+    });
+
+    const deptLines = Object.entries(deptStats).map(([dept, stat]) => {
+      const rate = stat.total > 0 ? Math.round((stat.completed / stat.total) * 100) : 0;
+      return `### 💼 ${dept} Department
+- **Team Members:** ${stat.members.join(', ')}
+- **Task Status:** ${stat.completed} completed, ${stat.pending} pending (Total: ${stat.total})
+- **Completion Rate:** \`${rate}%\``;
+    }).join('\n\n');
+
+    const memberBreakdowns = metrics.memberStats.map(m => {
+      return `- **${m.full_name || m.username}** (${m.role}): Completed **${m.completedTasks}** of **${m.totalTasks}** assigned tasks (Completion Rate: \`${m.completionRate}%\`)`;
+    }).join('\n');
+
+    const upcomingEventsLines = upcomingEvents.length > 0
+      ? upcomingEvents.map(e => `- 🗓️ **${e.title || 'Event'}** on \`${new Date(e.date || e.event_date || e.created_at).toLocaleDateString()}\` (${e.description || 'No description'})`).join('\n')
+      : "- No upcoming team events scheduled.";
+
+    const currentDate = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    return `# 📊 Company Executive HR Report
+**Generated on:** ${currentDate}
+**Status:** ⚠️ Local Offline Fallback Generator (Gemini Service Unavailable)
+
+---
+
+## 📈 1. Executive Summary & Operational Health
+- **Total Registered Team Members:** ${teamProfiles.length} members
+- **Company-Wide Task Volume:** **${metrics.total}** active tasks
+- **Tasks Completed:** **${metrics.completed}** completed items
+- **Awaiting Handover / Pending Checklist:** **${metrics.pending}** pending items
+- **Overall Operational Efficiency:** \`${metrics.completionRate}%\` completion rate
+
+---
+
+## 🏢 2. Departmental Breakdown
+${deptLines}
+
+---
+
+## 👥 3. Individual Productivity Metrics
+${memberBreakdowns}
+
+---
+
+## 🗓️ 4. Upcoming Team Events & Leaves
+${upcomingEventsLines}
+
+---
+
+## ⚡ 5. Strategic Recommendations & Bottlenecks
+1. **Unassigned / Overdue Checks:** There are currently **${metrics.pending}** tasks requiring active attention. Ensure priorities are set appropriately.
+2. **Weekly Workflow Alignment:** Conduct departmental check-ins for teams with completion rates below 80% to address capacity issues.
+3. **Cross-Department Support:** Share resources from higher-performing departments to clear backlogs in slower queues.
+`;
+  };
+
   // AI HR Report Generation
   const generateAIReport = useCallback(async () => {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) throw new Error("VITE_GEMINI_API_KEY is not configured in the environment.");
     
     const payload = {
       metrics,
@@ -554,67 +662,59 @@ export const TaskProvider = ({ children }) => {
 Here is the raw JSON data:
 ${JSON.stringify(payload, null, 2)}`;
 
-    const endpoints = [
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`
+    const MODEL_CANDIDATES = [
+      "gemini-1.5-flash-latest",
+      "gemini-1.5-flash",
+      "gemini-2.0-flash",
+      "gemini-1.5-pro-latest"
     ];
 
+    let reportContent = null;
     let lastError = null;
-    let data = null;
 
-    for (const endpoint of endpoints) {
+    if (apiKey) {
       try {
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }]
-          })
-        });
-
-        const jsonData = await response.json();
-        
-        if (!response.ok) {
-          lastError = new Error(jsonData.error?.message || 'Failed to generate report');
-          // If it's a 404 or server error, we continue to the next fallback.
-          // If it's auth/quota, we might still want to try just in case, or break.
-          // Let's keep it simple and just try the next one on any failure.
-          continue;
+        const genAI = new GoogleGenerativeAI(apiKey);
+        for (const modelName of MODEL_CANDIDATES) {
+          try {
+            const model = genAI.getGenerativeModel({ model: modelName });
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            const text = response.text();
+            if (text) {
+              reportContent = text;
+              break;
+            }
+          } catch (err) {
+            console.warn(`Model ${modelName} failed:`, err);
+            lastError = err;
+          }
         }
-
-        data = jsonData;
-        break; // Success!
       } catch (err) {
-        lastError = err;
-        continue;
+        console.error("SDK initialization error:", err);
       }
+    } else {
+      console.warn("Gemini API Key is missing in environment. Using local fallback report.");
     }
 
-    if (!data) {
-      console.error(lastError);
-      throw lastError || new Error("Failed to generate report from all endpoints.");
+    // Offline / Local fallback if all external models fail or API Key is missing
+    if (!reportContent) {
+      console.warn("All model candidates failed or key is missing. Generating structured local report fallback.");
+      reportContent = generateLocalExecutiveReport(payload);
     }
 
+    // Auto-save the generated report into the hr_reports table
     try {
-      const reportContent = data.candidates[0].content.parts[0].text;
-      
-      // Auto-save the generated report into the hr_reports table
-      try {
-        await supabase.from('hr_reports').insert([{
-          report_content: reportContent,
-          generated_by: currentUser?.id,
-          created_at: new Date().toISOString()
-        }]);
-      } catch (insertErr) {
-        console.error("Failed to auto-save report:", insertErr);
-      }
-
-      return reportContent;
-    } catch (err) {
-      console.error("Error parsing Gemini response:", err);
-      throw new Error("Received invalid format from Gemini API.");
+      await supabase.from('hr_reports').insert([{
+        report_content: reportContent,
+        generated_by: currentUser?.id,
+        created_at: new Date().toISOString()
+      }]);
+    } catch (insertErr) {
+      console.error("Failed to auto-save report:", insertErr);
     }
+
+    return reportContent;
   }, [metrics, events, profiles, currentUser]);
 
   // Unified Calendar Events for UI

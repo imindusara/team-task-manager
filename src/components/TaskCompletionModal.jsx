@@ -9,7 +9,13 @@ export default function TaskCompletionModal({ task, isOpen, onClose, onConfirm }
   if (!isOpen || !task) return null;
 
   const isCurrentlyCompleted = task.status === 'completed';
-  const assignedProfile = profiles.find(p => p.id === task.assigned_to);
+  const assignedProfile = profiles.find((p) => 
+    p.id === task.assigned_to || 
+    p.full_name?.toLowerCase() === task.assigned_to?.toLowerCase() ||
+    p.username?.toLowerCase() === task.assigned_to?.toLowerCase() ||
+    task.assigned_to?.toLowerCase().includes(p.username?.toLowerCase()) ||
+    task.assigned_to?.toLowerCase().includes(p.full_name?.toLowerCase())
+  );
 
   const handleSubmit = (e) => {
     e.preventDefault();

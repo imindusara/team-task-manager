@@ -200,7 +200,7 @@ export default function StaffDashboard() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          <div className="flex flex-col gap-3.5">
             {filteredTasks.map((task) => (
               <TaskCard key={task.id} task={task} />
             ))}
