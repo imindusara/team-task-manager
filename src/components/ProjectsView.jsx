@@ -131,9 +131,9 @@ export default function ProjectsView() {
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       {/* Header Banner */}
-      <div className="relative rounded-3xl p-6 sm:p-8 overflow-hidden bg-gradient-to-r from-slate-900 via-indigo-950/80 to-purple-950/70 border border-slate-800 shadow-2xl">
-        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-1/3 -mb-16 w-60 h-60 rounded-full bg-purple-500/10 blur-3xl pointer-events-none" />
+      <div className="relative rounded-3xl p-6 sm:p-8 overflow-hidden bg-gradient-to-r from-zinc-950 via-neutral-900/90 to-zinc-950 border border-slate-800 shadow-2xl">
+        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 rounded-full bg-indigo-500/5 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 -mb-16 w-60 h-60 rounded-full bg-purple-500/5 blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
@@ -306,7 +306,7 @@ export default function ProjectsView() {
       {/* VIEW A: MEMBER-WISE PROJECT PORTFOLIO (6 COLUMNS) */}
       {activeTab === 'portfolio' && (
         <div className="overflow-x-auto pb-6 -mx-2 px-2 sm:mx-0 sm:px-0 scrollbar-thin">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-start min-w-full lg:min-w-[1320px]">
+          <div className="flex gap-4 items-start min-w-[1680px]">
             {teamList.map((member) => {
               const memberProjects = getProjectsForMember(member);
               const leadProjectsCount = memberProjects.filter(p => p.lead_id === member.id || p.lead_name === member.full_name).length;
@@ -315,12 +315,12 @@ export default function ProjectsView() {
               return (
                 <div 
                   key={member.id}
-                  className="rounded-3xl glass-panel border border-slate-800 p-4 space-y-3.5 bg-slate-900/40 hover:border-slate-700/80 transition-all flex flex-col min-h-[460px] min-w-[240px]"
+                  className="w-[270px] min-w-[270px] max-w-[270px] rounded-3xl glass-panel border border-slate-800 p-4 space-y-3.5 bg-slate-900/50 hover:border-slate-700/80 transition-all flex flex-col min-h-[480px] overflow-hidden shadow-xl"
                 >
                   {/* Member Column Header */}
-                  <div className="space-y-2 border-b border-slate-800/80 pb-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="relative">
+                  <div className="space-y-2 border-b border-slate-800/80 pb-3 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="relative flex-shrink-0">
                         <img 
                           src={member.avatar_url} 
                           alt={member.full_name} 
@@ -330,26 +330,26 @@ export default function ProjectsView() {
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0">
                           <h3 className="text-xs font-bold text-white truncate">
                             {member.full_name || member.username}
                           </h3>
                           {member.role === 'admin' && (
-                            <span className="text-[9px] font-black uppercase px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            <span className="text-[9px] font-black uppercase px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 flex-shrink-0">
                               Admin
                             </span>
                           )}
                         </div>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md border font-semibold inline-block mt-0.5 ${getDepartmentBadge(member.department)}`}>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md border font-semibold inline-block mt-0.5 truncate max-w-full ${getDepartmentBadge(member.department)}`}>
                           {member.department}
                         </span>
                       </div>
                     </div>
 
                     {/* Member Project Workload Summary */}
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold px-1 pt-1">
-                      <span>{memberProjects.length} Active {memberProjects.length === 1 ? 'Project' : 'Projects'}</span>
-                      <span className="text-[10px] text-indigo-300 font-bold bg-indigo-500/20 px-1.5 py-0.2 rounded">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold px-1 pt-1 min-w-0">
+                      <span className="truncate">{memberProjects.length} Active {memberProjects.length === 1 ? 'Project' : 'Projects'}</span>
+                      <span className="text-[10px] text-indigo-300 font-bold bg-indigo-500/20 px-1.5 py-0.2 rounded flex-shrink-0">
                         {leadProjectsCount} Lead &bull; {supportingProjectsCount} Support
                       </span>
                     </div>
@@ -367,7 +367,7 @@ export default function ProjectsView() {
                   </div>
 
                   {/* Column Project Cards Feed */}
-                  <div className="space-y-3 flex-1">
+                  <div className="space-y-3 flex-1 min-w-0">
                     {memberProjects.length === 0 ? (
                       <div className="text-center py-10 px-2 rounded-2xl bg-slate-950/30 border border-dashed border-slate-800/80">
                         <Briefcase size={20} className="mx-auto text-slate-600 mb-1.5" />
@@ -386,52 +386,52 @@ export default function ProjectsView() {
                           <div
                             key={project.id}
                             onClick={() => setSelectedProjectForDetails(project)}
-                            className="group p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 hover:border-indigo-500/50 transition-all cursor-pointer space-y-2.5 shadow-md hover:shadow-indigo-500/10 relative"
+                            className="group p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 hover:border-indigo-500/50 transition-all cursor-pointer space-y-2.5 shadow-md hover:shadow-indigo-500/10 relative overflow-hidden min-w-0"
                           >
                             {/* Top Badges */}
-                            <div className="flex items-center justify-between gap-1.5">
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 ${typeBadge.badge}`}>
-                                <span>{typeBadge.icon}</span>
-                                <span className="truncate max-w-[120px]">{project.project_type}</span>
+                            <div className="flex items-center justify-between gap-1.5 min-w-0">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 min-w-0 flex-1 truncate ${typeBadge.badge}`}>
+                                <span className="flex-shrink-0">{typeBadge.icon}</span>
+                                <span className="truncate">{project.project_type}</span>
                               </span>
 
                               <button
                                 onClick={(e) => handleCycleStatus(e, project)}
                                 disabled={!isHRorAdmin}
                                 title={isHRorAdmin ? "Click to cycle status" : ""}
-                                className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border flex items-center gap-1 transition-all ${statusBadge.badge} ${
+                                className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border flex items-center gap-1 flex-shrink-0 transition-all ${statusBadge.badge} ${
                                   isHRorAdmin ? 'cursor-pointer hover:scale-105' : 'cursor-default'
                                 }`}
                               >
                                 <span className={`w-1.5 h-1.5 rounded-full ${statusBadge.dot}`} />
-                                <span>{project.status}</span>
+                                <span className="whitespace-nowrap">{project.status}</span>
                               </button>
                             </div>
 
                             {/* Project & Client Name */}
-                            <div>
-                              <h4 className="text-xs font-black text-white group-hover:text-indigo-300 transition-colors line-clamp-1">
+                            <div className="min-w-0 space-y-0.5">
+                              <h4 className="text-xs font-black text-white group-hover:text-indigo-300 transition-colors truncate" title={project.name}>
                                 {project.name}
                               </h4>
-                              <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">
+                              <p className="text-[11px] text-slate-400 font-medium truncate" title={project.client_name}>
                                 🏢 {project.client_name}
                               </p>
                             </div>
 
                             {/* Member Role Pill (Lead vs Contributor) */}
-                            <div className="flex items-center justify-between pt-1 text-[10px]">
+                            <div className="flex items-center justify-between pt-1 text-[10px] min-w-0">
                               {isLead ? (
-                                <span className="px-2 py-0.5 rounded-md font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                                <span className="px-2 py-0.5 rounded-md font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1 flex-shrink-0">
                                   <span>⭐ Primary Lead</span>
                                 </span>
                               ) : (
-                                <span className="px-2 py-0.5 rounded-md font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1">
+                                <span className="px-2 py-0.5 rounded-md font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1 flex-shrink-0">
                                   <span>🤝 Contributor</span>
                                 </span>
                               )}
 
                               {project.deadline && (
-                                <span className="text-slate-400 font-medium">
+                                <span className="text-slate-400 font-medium truncate text-right">
                                   📅 {project.deadline}
                                 </span>
                               )}
@@ -444,13 +444,13 @@ export default function ProjectsView() {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-indigo-950/60 border border-slate-800 hover:border-indigo-500/40 text-[11px] text-indigo-300 hover:text-white transition-all font-semibold"
+                                className="w-full min-w-0 flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-indigo-950/60 border border-slate-800 hover:border-indigo-500/40 text-[11px] text-indigo-300 hover:text-white transition-all font-semibold overflow-hidden"
                               >
-                                <span className="truncate flex items-center gap-1.5">
-                                  <Globe size={12} className="text-indigo-400" />
+                                <span className="truncate flex items-center gap-1.5 min-w-0 flex-1">
+                                  <Globe size={12} className="text-indigo-400 flex-shrink-0" />
                                   <span className="truncate">{project.website_url.replace(/^https?:\/\//, '')}</span>
                                 </span>
-                                <ExternalLink size={11} className="flex-shrink-0" />
+                                <ExternalLink size={11} className="flex-shrink-0 ml-1.5 text-slate-400" />
                               </a>
                             )}
                           </div>

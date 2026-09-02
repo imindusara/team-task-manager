@@ -342,7 +342,7 @@ export default function MemberAllocationBoard() {
 
       {/* 6-MEMBER ALLOCATION KANBAN COLUMNS */}
       <div className="overflow-x-auto pb-6 -mx-2 px-2 sm:mx-0 sm:px-0 scrollbar-thin">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-start min-w-full lg:min-w-[1280px]">
+        <div className="flex gap-4 items-start min-w-[1680px]">
           {memberList.map((member) => {
             const memberTasks = getTasksForMember(member);
             const totalMemberTasks = tasks.filter(t => isTaskForMember(t, member)).length;
@@ -353,7 +353,7 @@ export default function MemberAllocationBoard() {
           return (
             <div 
               key={member.id}
-              className="rounded-3xl glass-panel border border-slate-800/90 bg-slate-950/70 shadow-xl overflow-hidden flex flex-col min-h-[500px]"
+              className="w-[270px] min-w-[270px] max-w-[270px] rounded-3xl glass-panel border border-slate-800/90 bg-slate-950/70 shadow-xl overflow-hidden flex flex-col min-h-[500px]"
             >
               {/* MEMBER COLUMN HEADER */}
               <div className="p-4 border-b border-slate-800/80 bg-slate-900/60 relative">
