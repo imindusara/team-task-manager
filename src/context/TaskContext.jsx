@@ -129,7 +129,25 @@ export const TaskProvider = ({ children }) => {
         .select('*')
         .order('created_at', { ascending: false });
       if (!error && data) {
-        setProjects(data);
+        const normalized = data.map(p => ({
+          id: p.id,
+          name: p.project_name || p.name || 'Untitled Project',
+          project_name: p.project_name || p.name,
+          client_name: p.client_name || '',
+          project_type: p.project_type || 'Web Development',
+          lead_id: p.lead_member_id || p.lead_id || null,
+          lead_member_id: p.lead_member_id || p.lead_id || null,
+          lead_name: p.lead_name || '',
+          supporting_member_ids: p.assigned_member_ids || p.supporting_member_ids || [],
+          assigned_member_ids: p.assigned_member_ids || p.supporting_member_ids || [],
+          status: p.status || 'In Progress',
+          website_url: p.live_url || p.website_url || null,
+          live_url: p.live_url || p.website_url || null,
+          deadline: p.deadline || null,
+          description: p.description || '',
+          created_at: p.created_at || new Date().toISOString()
+        }));
+        setProjects(normalized);
       } else if (error) {
         console.warn('Notice from projects fetch:', error.message);
         setProjects([]);
@@ -293,25 +311,53 @@ export const TaskProvider = ({ children }) => {
         { event: '*', schema: 'public', table: 'projects' },
         (payload) => {
           if (payload.eventType === 'INSERT') {
+            const raw = payload.new;
+            const normalized = {
+              id: raw.id,
+              name: raw.project_name || raw.name || 'Untitled Project',
+              project_name: raw.project_name || raw.name,
+              client_name: raw.client_name || '',
+              project_type: raw.project_type || 'Web Development',
+              lead_id: raw.lead_member_id || raw.lead_id || null,
+              lead_member_id: raw.lead_member_id || raw.lead_id || null,
+              lead_name: raw.lead_name || '',
+              supporting_member_ids: raw.assigned_member_ids || raw.supporting_member_ids || [],
+              assigned_member_ids: raw.assigned_member_ids || raw.supporting_member_ids || [],
+              status: raw.status || 'In Progress',
+              website_url: raw.live_url || raw.website_url || null,
+              live_url: raw.live_url || raw.website_url || null,
+              deadline: raw.deadline || null,
+              description: raw.description || '',
+              created_at: raw.created_at || new Date().toISOString()
+            };
             setProjects(prev => {
-              const exists = prev.some(p => p.id === payload.new.id);
-              if (exists) return prev;
-              const next = [payload.new, ...prev];
-              localStorage.setItem('univerz_projects_data', JSON.stringify(next));
-              return next;
+              const exists = prev.some(p => p.id === normalized.id);
+              if (exists) return prev.map(p => p.id === normalized.id ? normalized : p);
+              return [normalized, ...prev];
             });
           } else if (payload.eventType === 'UPDATE') {
-            setProjects(prev => {
-              const next = prev.map(p => (p.id === payload.new.id ? payload.new : p));
-              localStorage.setItem('univerz_projects_data', JSON.stringify(next));
-              return next;
-            });
+            const raw = payload.new;
+            const normalized = {
+              id: raw.id,
+              name: raw.project_name || raw.name || 'Untitled Project',
+              project_name: raw.project_name || raw.name,
+              client_name: raw.client_name || '',
+              project_type: raw.project_type || 'Web Development',
+              lead_id: raw.lead_member_id || raw.lead_id || null,
+              lead_member_id: raw.lead_member_id || raw.lead_id || null,
+              lead_name: raw.lead_name || '',
+              supporting_member_ids: raw.assigned_member_ids || raw.supporting_member_ids || [],
+              assigned_member_ids: raw.assigned_member_ids || raw.supporting_member_ids || [],
+              status: raw.status || 'In Progress',
+              website_url: raw.live_url || raw.website_url || null,
+              live_url: raw.live_url || raw.website_url || null,
+              deadline: raw.deadline || null,
+              description: raw.description || '',
+              created_at: raw.created_at || new Date().toISOString()
+            };
+            setProjects(prev => prev.map(p => (p.id === normalized.id ? normalized : p)));
           } else if (payload.eventType === 'DELETE') {
-            setProjects(prev => {
-              const next = prev.filter(p => p.id !== payload.old.id);
-              localStorage.setItem('univerz_projects_data', JSON.stringify(next));
-              return next;
-            });
+            setProjects(prev => prev.filter(p => p.id !== payload.old.id));
           }
         }
       )
@@ -782,14 +828,16 @@ export const TaskProvider = ({ children }) => {
 
     const payload = {
       date: formattedDate,
+      roster_date: formattedDate,
       assigned_member_ids: memberIds,
+      shift_type: 'Full Day',
       notes: notes?.trim() || null,
       created_by: currentUser?.id || null
     };
 
     // Optimistic state update
     setWorkRosters(prev => {
-      const existingIdx = prev.findIndex(r => r.date === formattedDate);
+      const existingIdx = prev.findIndex(r => r.date === formattedDate || r.roster_date === formattedDate);
       if (existingIdx >= 0) {
         const next = [...prev];
         next[existingIdx] = { ...next[existingIdx], ...payload };
@@ -805,7 +853,7 @@ export const TaskProvider = ({ children }) => {
         .select();
 
       if (!error && data && data[0]) {
-        setWorkRosters(prev => prev.map(r => (r.date === formattedDate ? data[0] : r)));
+        setWorkRosters(prev => prev.map(r => (r.date === formattedDate || r.roster_date === formattedDate ? data[0] : r)));
         return data[0];
       } else if (error) {
         console.error('Error saving daily roster in Supabase:', error);
@@ -819,13 +867,13 @@ export const TaskProvider = ({ children }) => {
 
   const deleteDailyRoster = useCallback(async (dateStr) => {
     const formattedDate = toDateStringOnly(dateStr);
-    setWorkRosters(prev => prev.filter(r => r.date !== formattedDate));
+    setWorkRosters(prev => prev.filter(r => r.date !== formattedDate && r.roster_date !== formattedDate));
 
     try {
       const { error } = await supabase
         .from('work_roster')
         .delete()
-        .eq('date', formattedDate);
+        .or(`date.eq.${formattedDate},roster_date.eq.${formattedDate}`);
 
       if (error) {
         console.error('Error deleting daily roster in Supabase:', error);
@@ -1041,48 +1089,83 @@ ${JSON.stringify(payload, null, 2)}`;
 
   // Project CRUD Actions
   const createProject = useCallback(async (projectData) => {
-    const newProject = {
-      id: 'proj-' + Date.now(),
-      name: projectData.name?.trim() || 'Untitled Project',
+    const insertPayload = {
+      project_name: (projectData.name || projectData.project_name || 'Untitled Project').trim(),
       client_name: (projectData.client_name || '').trim(),
       project_type: projectData.project_type || 'Web Development',
-      lead_id: projectData.lead_id || null,
-      lead_name: projectData.lead_name || '',
-      supporting_member_ids: Array.isArray(projectData.supporting_member_ids) ? projectData.supporting_member_ids : [],
+      lead_member_id: projectData.lead_id || projectData.lead_member_id || null,
+      assigned_member_ids: Array.isArray(projectData.supporting_member_ids) ? projectData.supporting_member_ids : (projectData.assigned_member_ids || []),
       status: projectData.status || 'In Progress',
-      website_url: (projectData.website_url || '').trim() || null,
+      live_url: (projectData.website_url || projectData.live_url || '').trim() || null,
       deadline: projectData.deadline || null,
       description: (projectData.description || '').trim() || '',
+      created_by: currentUser?.id || null,
       created_at: new Date().toISOString()
     };
 
-    setProjects(prev => [newProject, ...prev.filter(p => p.id !== newProject.id)]);
+    const tempProject = {
+      ...insertPayload,
+      id: 'temp-' + Date.now(),
+      name: insertPayload.project_name,
+      lead_id: insertPayload.lead_member_id,
+      supporting_member_ids: insertPayload.assigned_member_ids,
+      website_url: insertPayload.live_url
+    };
 
+    setProjects(prev => [tempProject, ...prev]);
     triggerConfetti();
 
     try {
       const { data, error } = await supabase
         .from('projects')
-        .insert([newProject])
+        .insert([insertPayload])
         .select();
 
       if (!error && data && data[0]) {
-        setProjects(prev => [data[0], ...prev.filter(p => p.id !== newProject.id && p.id !== data[0].id)]);
-        return data[0];
+        const saved = {
+          ...data[0],
+          name: data[0].project_name || data[0].name,
+          lead_id: data[0].lead_member_id || data[0].lead_id,
+          supporting_member_ids: data[0].assigned_member_ids || data[0].supporting_member_ids || [],
+          website_url: data[0].live_url || data[0].website_url
+        };
+        setProjects(prev => [saved, ...prev.filter(p => p.id !== tempProject.id && p.id !== saved.id)]);
+        return saved;
+      } else if (error) {
+        console.error('Supabase projects insert error:', error.message);
       }
     } catch (err) {
       console.warn('Supabase projects insert exception:', err);
     }
-    return newProject;
-  }, [triggerConfetti]);
+    return tempProject;
+  }, [currentUser, triggerConfetti]);
 
   const updateProject = useCallback(async (projectId, updates) => {
     setProjects(prev => prev.map(p => (p.id === projectId ? { ...p, ...updates } : p)));
 
+    const dbUpdates = {};
+    if (updates.name !== undefined || updates.project_name !== undefined) {
+      dbUpdates.project_name = updates.project_name || updates.name;
+    }
+    if (updates.client_name !== undefined) dbUpdates.client_name = updates.client_name;
+    if (updates.project_type !== undefined) dbUpdates.project_type = updates.project_type;
+    if (updates.lead_id !== undefined || updates.lead_member_id !== undefined) {
+      dbUpdates.lead_member_id = updates.lead_member_id || updates.lead_id;
+    }
+    if (updates.supporting_member_ids !== undefined || updates.assigned_member_ids !== undefined) {
+      dbUpdates.assigned_member_ids = updates.assigned_member_ids || updates.supporting_member_ids;
+    }
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.website_url !== undefined || updates.live_url !== undefined) {
+      dbUpdates.live_url = updates.live_url !== undefined ? updates.live_url : updates.website_url;
+    }
+    if (updates.deadline !== undefined) dbUpdates.deadline = updates.deadline;
+    if (updates.description !== undefined) dbUpdates.description = updates.description;
+
     try {
       await supabase
         .from('projects')
-        .update(updates)
+        .update(dbUpdates)
         .eq('id', projectId);
     } catch (err) {
       console.warn('Error updating project in Supabase:', err);
