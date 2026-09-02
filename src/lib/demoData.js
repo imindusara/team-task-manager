@@ -75,3 +75,101 @@ export const getDepartmentBadge = (dept) => {
       return 'bg-slate-700/40 text-slate-300 border-slate-600/40';
   }
 };
+
+export const PROJECT_TYPES = [
+  'Web Development',
+  'Social Media Management',
+  'Video Production',
+  'Branding/Design',
+  'Marketing Campaign'
+];
+
+export const PROJECT_STATUSES = [
+  'In Progress',
+  'In Review',
+  'Completed',
+  'Planning',
+  'On Hold'
+];
+
+export const getProjectTypeBadge = (type) => {
+  switch (type) {
+    case 'Web Development':
+      return {
+        label: 'Web Development',
+        icon: '🌐',
+        badge: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
+      };
+    case 'Social Media Management':
+      return {
+        label: 'Social Media Management',
+        icon: '📱',
+        badge: 'bg-pink-500/15 text-pink-300 border-pink-500/30'
+      };
+    case 'Video Production':
+      return {
+        label: 'Video Production',
+        icon: '🎬',
+        badge: 'bg-purple-500/15 text-purple-300 border-purple-500/30'
+      };
+    case 'Branding/Design':
+      return {
+        label: 'Branding/Design',
+        icon: '🎨',
+        badge: 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+      };
+    case 'Marketing Campaign':
+      return {
+        label: 'Marketing Campaign',
+        icon: '🚀',
+        badge: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+      };
+    default:
+      return {
+        label: type || 'Client Project',
+        icon: '📁',
+        badge: 'bg-slate-800 text-slate-300 border-slate-700'
+      };
+  }
+};
+
+export const getProjectStatusBadge = (status) => {
+  switch (status) {
+    case 'In Progress':
+      return {
+        label: 'In Progress',
+        dot: 'bg-emerald-400',
+        badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+      };
+    case 'In Review':
+      return {
+        label: 'In Review',
+        dot: 'bg-amber-400',
+        badge: 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+      };
+    case 'Completed':
+      return {
+        label: 'Completed',
+        dot: 'bg-sky-400',
+        badge: 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+      };
+    case 'Planning':
+      return {
+        label: 'Planning',
+        dot: 'bg-purple-400',
+        badge: 'bg-purple-500/15 text-purple-300 border-purple-500/30'
+      };
+    case 'On Hold':
+      return {
+        label: 'On Hold',
+        dot: 'bg-rose-400',
+        badge: 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+      };
+    default:
+      return {
+        label: status || 'Active',
+        dot: 'bg-slate-400',
+        badge: 'bg-slate-800 text-slate-300 border-slate-700'
+      };
+  }
+};

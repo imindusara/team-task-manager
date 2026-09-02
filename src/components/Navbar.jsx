@@ -8,7 +8,10 @@ import {
   LogOut, 
   ShieldCheck, 
   User,
-  ChevronDown
+  ChevronDown,
+  Calendar as CalendarIcon,
+  BellRing,
+  Briefcase
 } from 'lucide-react';
 import { getDepartmentBadge } from '../lib/demoData';
 import univerzLogo from '../assets/univerz-logo.png';
@@ -20,12 +23,17 @@ export default function Navbar() {
     logout, 
     isRealtimeLive,
     currentView,
-    setCurrentView
+    setCurrentView,
+    calendarEvents,
+    tasks
   } = useTasks();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+
+  // Active reminders count
+  const remindersCount = (calendarEvents || []).filter(e => e.type === 'reminder').length;
 
   return (
     <>
@@ -52,11 +60,48 @@ export default function Navbar() {
             </div>
           </div>
 
+          {/* Center / Nav View Switcher (Tasks | Projects | Calendar) */}
+          <div className="flex items-center bg-slate-900/90 border border-slate-800 rounded-xl p-1 shadow-inner">
+            <button
+              onClick={() => setCurrentView('dashboard')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                currentView === 'dashboard'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+              }`}
+            >
+              <CheckSquare size={13} />
+              <span>Tasks</span>
+            </button>
+            <button
+              onClick={() => setCurrentView('projects')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                currentView === 'projects'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+              }`}
+            >
+              <Briefcase size={13} />
+              <span>Projects</span>
+            </button>
+            <button
+              onClick={() => setCurrentView('calendar')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                currentView === 'calendar'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+              }`}
+            >
+              <CalendarIcon size={13} />
+              <span>Calendar</span>
+            </button>
+          </div>
+
           {/* Right Header Navigation */}
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Realtime Pulsing Badge */}
             <div 
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs font-semibold text-slate-300"
+              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs font-semibold text-slate-300"
               title="Supabase Realtime channel active"
             >
               <span className="relative flex h-2 w-2">
@@ -75,16 +120,6 @@ export default function Navbar() {
                 {isRealtimeLive ? 'Realtime Connected' : 'Syncing'}
               </span>
             </div>
-
-            {/* Back to Dashboard Button (When in Calendar) */}
-            {currentView === 'calendar' && (
-              <button
-                onClick={() => setCurrentView('dashboard')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition-colors border border-slate-700"
-              >
-                Back to Dashboard
-              </button>
-            )}
 
             {/* + New Task Button */}
             {(currentUser?.role === 'HR' || currentUser?.role === 'admin' || currentUser?.role === 'Admin') && (
@@ -114,6 +149,11 @@ export default function Navbar() {
                       isAdmin ? 'bg-amber-400' : 'bg-emerald-400'
                     }`}
                   />
+                  {remindersCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-purple-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-slate-950 animate-pulse shadow-sm">
+                      {remindersCount}
+                    </span>
+                  )}
                 </div>
 
                 <div className="hidden md:block text-left">
@@ -164,18 +204,33 @@ export default function Navbar() {
                         setCurrentView('calendar');
                         setIsUserMenuOpen(false);
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-indigo-400 hover:bg-slate-800/80 transition-colors"
+                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                        currentView === 'calendar'
+                          ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
+                          : 'text-slate-300 hover:text-indigo-400 hover:bg-slate-800/80'
+                      }`}
                     >
                       📅 Team Calendar & Leaves
                     </button>
                     <button
                       onClick={() => {
-                        setCurrentView('calendar');
+                        setCurrentView('reminders');
                         setIsUserMenuOpen(false);
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-amber-400 hover:bg-slate-800/80 transition-colors"
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                        currentView === 'reminders'
+                          ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
+                          : 'text-slate-300 hover:text-purple-400 hover:bg-slate-800/80'
+                      }`}
                     >
-                      🔔 Special Reminders
+                      <span className="flex items-center gap-2">
+                        🔔 Special Reminders
+                      </span>
+                      {remindersCount > 0 && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-purple-500/30 text-purple-300 border border-purple-500/40">
+                          {remindersCount}
+                        </span>
+                      )}
                     </button>
                     <button
                       onClick={() => setIsUserMenuOpen(false)}

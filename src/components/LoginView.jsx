@@ -54,11 +54,8 @@ export default function LoginView() {
 
   const handleQuickFill = (username) => {
     setIdentifier(username);
-    setPassword('');
+    setPassword('Ashan@Password123');
     setErrorMsg('');
-    if (passwordRef.current) {
-      passwordRef.current.focus();
-    }
   };
 
   const teamList = profiles && profiles.length > 0 ? profiles : TEAM_MEMBERS;

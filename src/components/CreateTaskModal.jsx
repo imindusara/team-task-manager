@@ -1,17 +1,43 @@
-import React, { useState } from 'react';
-import { X, Plus, Calendar, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Plus, Calendar, Sparkles, Tag } from 'lucide-react';
 import { useTasks } from '../context/TaskContext';
 
-export default function CreateTaskModal({ isOpen, onClose, defaultCategory = 'general' }) {
+export default function CreateTaskModal({ 
+  isOpen, 
+  onClose, 
+  defaultCategory = 'general',
+  initialAssignee = null,
+  initialProjectTag = ''
+}) {
   const { profiles, currentUser, createTask } = useTasks();
 
   const [title, setTitle] = useState('');
+  const [projectTag, setProjectTag] = useState(initialProjectTag || '');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('Medium');
-  const [assignedTo, setAssignedTo] = useState(profiles[0]?.full_name || profiles[0]?.username || '');
+  const [assignedTo, setAssignedTo] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
+
+  // Sync initial assignee on open
+  useEffect(() => {
+    if (isOpen) {
+      if (initialAssignee) {
+        const match = profiles.find(p => 
+          p.id === initialAssignee || 
+          p.full_name?.toLowerCase() === initialAssignee?.toLowerCase() || 
+          p.username?.toLowerCase() === initialAssignee?.toLowerCase()
+        );
+        setAssignedTo(match ? (match.full_name || match.username) : initialAssignee);
+      } else if (profiles && profiles.length > 0) {
+        setAssignedTo(profiles[0]?.full_name || profiles[0]?.username || '');
+      }
+      if (initialProjectTag) {
+        setProjectTag(initialProjectTag);
+      }
+    }
+  }, [isOpen, initialAssignee, initialProjectTag, profiles]);
 
   if (!isOpen) return null;
 
@@ -22,9 +48,15 @@ export default function CreateTaskModal({ isOpen, onClose, defaultCategory = 'ge
     setIsSubmitting(true);
     setToastMessage(null);
 
+    // Format title with project tag if provided
+    let finalTitle = title.trim();
+    if (projectTag.trim() && !finalTitle.startsWith('[')) {
+      finalTitle = `[${projectTag.trim()}] ${finalTitle}`;
+    }
+
     try {
       await createTask({
-        title,
+        title: finalTitle,
         description,
         priority,
         assigned_to: assignedTo || (currentUser?.full_name || currentUser?.username),
@@ -33,13 +65,14 @@ export default function CreateTaskModal({ isOpen, onClose, defaultCategory = 'ge
 
       setToastMessage({ type: 'success', text: 'Task assigned successfully!' });
       setTitle('');
+      setProjectTag('');
       setDescription('');
       setDueDate('');
       
       setTimeout(() => {
         setToastMessage(null);
         onClose();
-      }, 1500);
+      }, 1200);
 
     } catch (error) {
       console.error(error);
@@ -93,9 +126,35 @@ export default function CreateTaskModal({ isOpen, onClose, defaultCategory = 'ge
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., Financial Q3 Audit Review / Daily Standup"
+              placeholder="e.g., Video Revisions / Asset Delivery / Social Post"
               className="w-full rounded-xl glass-input px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 font-medium"
               autoFocus
+            />
+          </div>
+
+          {/* Project Name / Tag (Optional) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <Tag size={13} className="text-indigo-400" />
+                <span>Project / Client Tag (Optional)</span>
+              </label>
+              {projectTag && (
+                <button
+                  type="button"
+                  onClick={() => setProjectTag('')}
+                  className="text-[10px] text-slate-500 hover:text-slate-300 font-semibold"
+                >
+                  Clear Tag
+                </button>
+              )}
+            </div>
+            <input
+              type="text"
+              value={projectTag}
+              onChange={(e) => setProjectTag(e.target.value)}
+              placeholder="e.g., Oceana Trinco / Marketing Campaign / Internal Ops"
+              className="w-full rounded-xl glass-input px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500"
             />
           </div>
 

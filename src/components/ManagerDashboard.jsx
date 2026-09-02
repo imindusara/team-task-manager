@@ -3,6 +3,7 @@ import { useTasks } from '../context/TaskContext';
 import TeamProgressGrid from './TeamProgressGrid';
 import TaskCard from './TaskCard';
 import CreateTaskModal from './CreateTaskModal';
+import MemberAllocationBoard from './MemberAllocationBoard';
 import { 
   Plus, 
   Search, 
@@ -15,7 +16,9 @@ import {
   ShieldCheck,
   Zap,
   User,
-  Users
+  Users,
+  LayoutGrid,
+  ListFilter
 } from 'lucide-react';
 import { getDepartmentBadge } from '../lib/demoData';
 
@@ -38,6 +41,7 @@ export default function ManagerDashboard() {
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedTimeframe, setSelectedTimeframe] = useState('all');
+  const [dashboardViewMode, setDashboardViewMode] = useState('list'); // 'list' | 'allocation'
 
   const isHRorAdmin = currentUser?.role === 'HR' || currentUser?.role === 'Admin' || currentUser?.role === 'admin' || currentUser?.department === 'HR' || currentUser?.role === 'hr';
 
@@ -259,201 +263,251 @@ export default function ManagerDashboard() {
         </div>
       </div>
 
-      {/* 6-Person Team Progress Grid */}
-      <div className="rounded-3xl glass-panel p-5 border border-slate-800">
-        <TeamProgressGrid />
-      </div>
+      {/* View Toggle / Tabs for HR / Admins: [All Tasks List] vs [Member Allocation Board] */}
+      {isHRorAdmin && (
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 p-2.5 rounded-2xl border border-slate-800 backdrop-blur-md shadow-xl">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setDashboardViewMode('list')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                dashboardViewMode === 'list'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400/40'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Layers size={14} />
+              <span>All Tasks List</span>
+            </button>
 
-      {/* Awaiting Approval Section (For HR/Admin) */}
-      {isAdmin && allReviewTasks.length > 0 && (
-        <div className="space-y-4 mb-8">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-500/30 pb-3">
-            <h3 className="text-lg font-bold text-amber-400 flex items-center gap-2">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+            <button
+              onClick={() => setDashboardViewMode('allocation')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                dashboardViewMode === 'allocation'
+                  ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 text-white shadow-md shadow-purple-600/30 ring-1 ring-purple-400/50'
+                  : 'text-slate-400 hover:text-purple-300 hover:bg-slate-800/60'
+              }`}
+            >
+              <Users size={14} className="text-purple-400" />
+              <span>Member Allocation Board</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full font-extrabold bg-purple-500/30 text-purple-200 border border-purple-500/40">
+                6 Members
               </span>
-              Awaiting HR Approval ({allReviewTasks.length})
-            </h3>
+            </button>
           </div>
-          <div className="flex flex-col gap-3.5">
-            {allReviewTasks.map((task) => (
-              <TaskCard key={`review-${task.id}`} task={task} />
-            ))}
+
+          <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400 pr-2 font-medium">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>
+              {dashboardViewMode === 'allocation' 
+                ? '6-Member Workload & Project Allocation Grid' 
+                : 'Comprehensive Task Feed & Filters'}
+            </span>
           </div>
         </div>
       )}
 
-      {/* Task Filters & Feed */}
-      <div className="space-y-4">
-        {/* Status Tab (previously Categories) */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
-          <div className="flex flex-wrap items-center gap-4">
-            <h3 className="text-lg font-bold text-white">Tasks Overview</h3>
+      {/* DYNAMIC VIEW: Member Allocation Board vs All Tasks List */}
+      {dashboardViewMode === 'allocation' ? (
+        <MemberAllocationBoard />
+      ) : (
+        <>
+          {/* 6-Person Team Progress Grid */}
+          <div className="rounded-3xl glass-panel p-5 border border-slate-800">
+            <TeamProgressGrid />
+          </div>
 
-            {/* Time Period Filters (HR / Admin Quick Tabs) */}
-            {isHRorAdmin && (
-              <div className="flex rounded-xl bg-slate-950 p-1 border border-slate-800">
+          {/* Awaiting Approval Section (For HR/Admin) */}
+          {isAdmin && allReviewTasks.length > 0 && (
+            <div className="space-y-4 mb-8">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-500/30 pb-3">
+                <h3 className="text-lg font-bold text-amber-400 flex items-center gap-2">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                  </span>
+                  Awaiting HR Approval ({allReviewTasks.length})
+                </h3>
+              </div>
+              <div className="flex flex-col gap-3.5">
+                {allReviewTasks.map((task) => (
+                  <TaskCard key={`review-${task.id}`} task={task} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Task Filters & Feed */}
+          <div className="space-y-4">
+            {/* Status Tab (previously Categories) */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+              <div className="flex flex-wrap items-center gap-4">
+                <h3 className="text-lg font-bold text-white">Tasks Overview</h3>
+
+                {/* Time Period Filters (HR / Admin Quick Tabs) */}
+                {isHRorAdmin && (
+                  <div className="flex rounded-xl bg-slate-950 p-1 border border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTimeframe('today')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                        selectedTimeframe === 'today'
+                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span>📅</span> Today
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTimeframe('week')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                        selectedTimeframe === 'week'
+                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span>🗓️</span> This Week
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTimeframe('month')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                        selectedTimeframe === 'month'
+                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span>📊</span> This Month
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTimeframe('all')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                        selectedTimeframe === 'all'
+                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span>⚡</span> All Tasks
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>
+                  {!isHRorAdmin 
+                    ? `Showing tasks for: ${currentUser?.full_name || currentUser?.username}`
+                    : "HR / Admin Dashboard Overview"
+                  }
+                </span>
+              </div>
+            </div>
+
+            {/* Toolbar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/70 p-3 rounded-2xl border border-slate-800">
+              <div className="relative flex-1 min-w-[200px] max-w-md">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={isHRorAdmin ? "Search all tasks..." : "Search my assigned tasks..."}
+                  className="w-full pl-9 pr-4 py-2 rounded-xl glass-input text-xs text-white placeholder:text-slate-500"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                {/* Role-Based Member Filter Dropdown (HR/Admin only) */}
+                {isHRorAdmin && (
+                  <select
+                    value={activeAssignee}
+                    onChange={(e) => setSelectedAssignee(e.target.value)}
+                    className="rounded-xl glass-input px-3 py-2 text-xs text-slate-200 bg-slate-900 cursor-pointer font-bold border-indigo-500/30 hover:border-indigo-500/50 transition-colors"
+                  >
+                    {memberList.map((option) => (
+                      <option key={option.value} value={option.value} className="bg-slate-900 text-slate-200">
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Status */}
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="rounded-xl glass-input px-3 py-2 text-xs text-slate-200 bg-slate-900 cursor-pointer"
+                >
+                  <option value="all">All Statuses ({currentTotal})</option>
+                  <option value="pending">Pending Only ({currentPending})</option>
+                  <option value="review">In Review ({currentReview})</option>
+                  <option value="completed">Completed Only ({currentCompleted})</option>
+                </select>
+
+                {/* Priority */}
+                <select
+                  value={selectedPriority}
+                  onChange={(e) => setSelectedPriority(e.target.value)}
+                  className="rounded-xl glass-input px-3 py-2 text-xs text-slate-200 bg-slate-900 cursor-pointer"
+                >
+                  <option value="all">All Priorities</option>
+                  <option value="Urgent">Urgent</option>
+                  <option value="High">High</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Low">Low</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Task Filtering Summary Badge */}
+            <div className="flex items-center justify-between bg-slate-900/40 px-4 py-2.5 rounded-xl border border-slate-800/80">
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
+                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                <span>
+                  Showing {activeAssignee === 'all' ? "All Members'" : `${profiles.find(p => p.id === activeAssignee)?.full_name || 'My'}`} Tasks &bull;{' '}
+                  {selectedTimeframe === 'all' && 'All Tasks'}
+                  {selectedTimeframe === 'today' && 'Today'}
+                  {selectedTimeframe === 'week' && 'This Week'}
+                  {selectedTimeframe === 'month' && 'This Month'}
+                  {' '}({filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'})
+                </span>
+              </div>
+            </div>
+
+            {/* Task Cards Grid */}
+            {filteredTasks.length === 0 ? (
+              <div className="text-center py-16 rounded-3xl glass-panel border border-slate-800">
+                <div className="w-12 h-12 rounded-2xl bg-slate-800 text-slate-400 mx-auto flex items-center justify-center mb-3">
+                  <CheckCircle2 size={24} />
+                </div>
+                <h4 className="text-sm font-bold text-slate-200">No tasks found</h4>
+                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                  No tasks currently match your filter criteria. Click below to assign a new task.
+                </p>
                 <button
-                  type="button"
-                  onClick={() => setSelectedTimeframe('today')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                    selectedTimeframe === 'today'
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                      : 'text-slate-400 hover:text-white'
+                  onClick={() => handleOpenCreate()}
+                  disabled={!isAdmin}
+                  title={!isAdmin ? "Only HR/Admin can assign tasks" : ""}
+                  className={`mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-xs font-bold transition-colors shadow-md ${
+                    isAdmin ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-slate-700 opacity-50 cursor-not-allowed'
                   }`}
                 >
-                  <span>📅</span> Today
+                  <Plus size={14} />
+                  Assign Task Now
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedTimeframe('week')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                    selectedTimeframe === 'week'
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <span>🗓️</span> This Week
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedTimeframe('month')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                    selectedTimeframe === 'month'
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <span>📊</span> This Month
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedTimeframe('all')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                    selectedTimeframe === 'all'
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <span>⚡</span> All Tasks
-                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3.5">
+                {filteredTasks.map((task) => (
+                  <TaskCard key={task.id} task={task} />
+                ))}
               </div>
             )}
           </div>
-
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>
-              {!isHRorAdmin 
-                ? `Showing tasks for: ${currentUser?.full_name || currentUser?.username}`
-                : "HR / Admin Dashboard Overview"
-              }
-            </span>
-          </div>
-        </div>
-
-        {/* Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/70 p-3 rounded-2xl border border-slate-800">
-          <div className="relative flex-1 min-w-[200px] max-w-md">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={isHRorAdmin ? "Search all tasks..." : "Search my assigned tasks..."}
-              className="w-full pl-9 pr-4 py-2 rounded-xl glass-input text-xs text-white placeholder:text-slate-500"
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            {/* Role-Based Member Filter Dropdown (HR/Admin only) */}
-            {isHRorAdmin && (
-              <select
-                value={activeAssignee}
-                onChange={(e) => setSelectedAssignee(e.target.value)}
-                className="rounded-xl glass-input px-3 py-2 text-xs text-slate-200 bg-slate-900 cursor-pointer font-bold border-indigo-500/30 hover:border-indigo-500/50 transition-colors"
-              >
-                {memberList.map((option) => (
-                  <option key={option.value} value={option.value} className="bg-slate-900 text-slate-200">
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            {/* Status */}
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="rounded-xl glass-input px-3 py-2 text-xs text-slate-200 bg-slate-900 cursor-pointer"
-            >
-              <option value="all">All Statuses ({currentTotal})</option>
-              <option value="pending">Pending Only ({currentPending})</option>
-              <option value="review">In Review ({currentReview})</option>
-              <option value="completed">Completed Only ({currentCompleted})</option>
-            </select>
-
-            {/* Priority */}
-            <select
-              value={selectedPriority}
-              onChange={(e) => setSelectedPriority(e.target.value)}
-              className="rounded-xl glass-input px-3 py-2 text-xs text-slate-200 bg-slate-900 cursor-pointer"
-            >
-              <option value="all">All Priorities</option>
-              <option value="Urgent">Urgent</option>
-              <option value="High">High</option>
-              <option value="Medium">Medium</option>
-              <option value="Low">Low</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Task Filtering Summary Badge */}
-        <div className="flex items-center justify-between bg-slate-900/40 px-4 py-2.5 rounded-xl border border-slate-800/80">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
-            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-            <span>
-              Showing {activeAssignee === 'all' ? "All Members'" : `${profiles.find(p => p.id === activeAssignee)?.full_name || 'My'}`} Tasks &bull;{' '}
-              {selectedTimeframe === 'all' && 'All Tasks'}
-              {selectedTimeframe === 'today' && 'Today'}
-              {selectedTimeframe === 'week' && 'This Week'}
-              {selectedTimeframe === 'month' && 'This Month'}
-              {' '}({filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'})
-            </span>
-          </div>
-        </div>
-
-        {/* Task Cards Grid */}
-        {filteredTasks.length === 0 ? (
-          <div className="text-center py-16 rounded-3xl glass-panel border border-slate-800">
-            <div className="w-12 h-12 rounded-2xl bg-slate-800 text-slate-400 mx-auto flex items-center justify-center mb-3">
-              <CheckCircle2 size={24} />
-            </div>
-            <h4 className="text-sm font-bold text-slate-200">No tasks found</h4>
-            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-              No tasks currently match your filter criteria. Click below to assign a new task.
-            </p>
-            <button
-              onClick={() => handleOpenCreate()}
-              disabled={!isAdmin}
-              title={!isAdmin ? "Only HR/Admin can assign tasks" : ""}
-              className={`mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-xs font-bold transition-colors shadow-md ${
-                isAdmin ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-slate-700 opacity-50 cursor-not-allowed'
-              }`}
-            >
-              <Plus size={14} />
-              Assign Task Now
-            </button>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3.5">
-            {filteredTasks.map((task) => (
-              <TaskCard key={task.id} task={task} />
-            ))}
-          </div>
-        )}
-      </div>
+        </>
+      )}
 
       {/* Create Modal */}
       <CreateTaskModal

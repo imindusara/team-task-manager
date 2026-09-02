@@ -3,6 +3,7 @@ import confetti from 'canvas-confetti';
 import { supabase } from '../lib/supabase';
 import { TEAM_MEMBERS } from '../lib/demoData';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { toDateStringOnly } from '../lib/dateUtils';
 
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || '');
 
@@ -27,10 +28,11 @@ export const TaskProvider = ({ children }) => {
   const [selectedAssignee, setSelectedAssignee] = useState('mine'); // 'mine' (current user only), 'all', or profile id
   const [searchQuery, setSearchQuery] = useState('');
 
-  // View & Calendar states
-  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard' or 'calendar'
-  const [events, setEvents] = useState([]);
-  const [leaves, setLeaves] = useState([]);
+  // View, Calendar, Projects & Work Roster states
+  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'projects', or 'calendar'
+  const [calendarEvents, setCalendarEvents] = useState([]);
+  const [workRosters, setWorkRosters] = useState([]);
+  const [projects, setProjects] = useState([]);
 
   // 1. Fetch profiles strictly from public.profiles
   const fetchProfiles = useCallback(async () => {
@@ -84,22 +86,57 @@ export const TaskProvider = ({ children }) => {
     }
   }, []);
 
-  // 2b. Fetch Events and Leaves
-  const fetchEvents = useCallback(async () => {
+  // 2b. Fetch Calendar Events strictly from public.calendar_events
+  const fetchCalendarEvents = useCallback(async () => {
     try {
-      const { data, error } = await supabase.from('team_events').select('*');
-      if (!error && data) setEvents(data);
+      const { data, error } = await supabase
+        .from('calendar_events')
+        .select('*')
+        .order('start_date', { ascending: true });
+      if (!error && data) {
+        setCalendarEvents(data);
+      } else if (error) {
+        // Graceful fallback if table is newly created or empty
+        console.warn('Notice from calendar_events fetch:', error.message);
+      }
     } catch (err) {
-      console.error(err);
+      console.error('calendar_events fetch exception:', err);
     }
   }, []);
 
-  const fetchLeaves = useCallback(async () => {
+  // 2c. Fetch Daily Work Rosters strictly from public.work_roster
+  const fetchWorkRosters = useCallback(async () => {
     try {
-      const { data, error } = await supabase.from('team_leaves').select('*');
-      if (!error && data) setLeaves(data);
+      const { data, error } = await supabase
+        .from('work_roster')
+        .select('*')
+        .order('date', { ascending: true });
+      if (!error && data) {
+        setWorkRosters(data);
+      } else if (error) {
+        console.warn('Notice from work_roster fetch:', error.message);
+      }
     } catch (err) {
-      console.error(err);
+      console.error('work_roster fetch exception:', err);
+    }
+  }, []);
+
+  // 2d. Fetch Projects strictly from public.projects
+  const fetchProjects = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (!error && data) {
+        setProjects(data);
+      } else if (error) {
+        console.warn('Notice from projects fetch:', error.message);
+        setProjects([]);
+      }
+    } catch (err) {
+      console.warn('projects fetch exception:', err);
+      setProjects([]);
     }
   }, []);
 
@@ -137,8 +174,9 @@ export const TaskProvider = ({ children }) => {
             }
           }
           await fetchTasks();
-          await fetchEvents();
-          await fetchLeaves();
+          await fetchCalendarEvents();
+          await fetchWorkRosters();
+          await fetchProjects();
         }
       } catch (err) {
         console.error('Auth initialization error:', err);
@@ -164,8 +202,7 @@ export const TaskProvider = ({ children }) => {
         if (matched) {
           setCurrentUser(matched);
           fetchTasks();
-          fetchEvents();
-          fetchLeaves();
+          fetchCalendarEvents();
         } else {
           // User authenticated but not authorized in profiles table
           setCurrentUser(null);
@@ -181,7 +218,7 @@ export const TaskProvider = ({ children }) => {
       isMounted = false;
       subscription?.unsubscribe();
     };
-  }, [fetchProfiles, fetchTasks]);
+  }, [fetchProfiles, fetchTasks, fetchCalendarEvents]);
 
   // 4. Subscribe to Supabase Realtime for Tasks & Profiles
   useEffect(() => {
@@ -218,27 +255,63 @@ export const TaskProvider = ({ children }) => {
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'team_events' },
+        { event: '*', schema: 'public', table: 'calendar_events' },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setEvents(prev => [...prev, payload.new]);
+            setCalendarEvents(prev => {
+              // Avoid duplicate if optimistic temp id exists or id matches
+              const exists = prev.some(e => e.id === payload.new.id);
+              if (exists) return prev;
+              return [...prev, payload.new];
+            });
           } else if (payload.eventType === 'UPDATE') {
-            setEvents(prev => prev.map(e => e.id === payload.new.id ? payload.new : e));
+            setCalendarEvents(prev => prev.map(e => e.id === payload.new.id ? payload.new : e));
           } else if (payload.eventType === 'DELETE') {
-            setEvents(prev => prev.filter(e => e.id !== payload.old.id));
+            setCalendarEvents(prev => prev.filter(e => e.id !== payload.old.id));
           }
         }
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'team_leaves' },
+        { event: '*', schema: 'public', table: 'work_roster' },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setLeaves(prev => [...prev, payload.new]);
+            setWorkRosters(prev => {
+              const exists = prev.some(r => r.date === payload.new.date || r.id === payload.new.id);
+              if (exists) return prev.map(r => (r.date === payload.new.date || r.id === payload.new.id ? payload.new : r));
+              return [...prev, payload.new];
+            });
           } else if (payload.eventType === 'UPDATE') {
-            setLeaves(prev => prev.map(l => l.id === payload.new.id ? payload.new : l));
+            setWorkRosters(prev => prev.map(r => (r.date === payload.new.date || r.id === payload.new.id ? payload.new : r)));
           } else if (payload.eventType === 'DELETE') {
-            setLeaves(prev => prev.filter(l => l.id !== payload.old.id));
+            setWorkRosters(prev => prev.filter(r => r.id !== payload.old.id && r.date !== payload.old.date));
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'projects' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setProjects(prev => {
+              const exists = prev.some(p => p.id === payload.new.id);
+              if (exists) return prev;
+              const next = [payload.new, ...prev];
+              localStorage.setItem('univerz_projects_data', JSON.stringify(next));
+              return next;
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            setProjects(prev => {
+              const next = prev.map(p => (p.id === payload.new.id ? payload.new : p));
+              localStorage.setItem('univerz_projects_data', JSON.stringify(next));
+              return next;
+            });
+          } else if (payload.eventType === 'DELETE') {
+            setProjects(prev => {
+              const next = prev.filter(p => p.id !== payload.old.id);
+              localStorage.setItem('univerz_projects_data', JSON.stringify(next));
+              return next;
+            });
           }
         }
       )
@@ -462,10 +535,23 @@ export const TaskProvider = ({ children }) => {
     }
   }, []);
 
-  // Role permissions
+  // Role permissions: HR / Admins (Ashan & Widura) have full management rights
   const isAdmin = useMemo(() => {
     if (!currentUser) return false;
-    return currentUser.role === 'admin' || currentUser.department === 'HR' || currentUser.role === 'HR';
+    const role = (currentUser.role || '').toLowerCase();
+    const dept = (currentUser.department || '').toLowerCase();
+    const username = (currentUser.username || '').toLowerCase();
+    const name = (currentUser.full_name || '').toLowerCase();
+    return (
+      role === 'admin' ||
+      role === 'manager' ||
+      role === 'hr' ||
+      dept === 'hr' ||
+      username === 'ashan' ||
+      username === 'widura' ||
+      name.includes('ashan') ||
+      name.includes('widura')
+    );
   }, [currentUser]);
 
   // Approve / Reject workflows (HR/Admin only)
@@ -522,7 +608,16 @@ export const TaskProvider = ({ children }) => {
     const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
 
     const memberStats = profiles.map(member => {
-      const memberTasks = tasks.filter(t => t.assigned_to === (member.full_name || member.username));
+      const memberTasks = tasks.filter(t => {
+        const a = t.assigned_to;
+        return (
+          a === member.id ||
+          a === member.full_name ||
+          a === member.username ||
+          a?.toLowerCase() === member.full_name?.toLowerCase() ||
+          a?.toLowerCase() === member.username?.toLowerCase()
+        );
+      });
       const mTotal = memberTasks.length;
       const mCompleted = memberTasks.filter(t => t.status === 'done').length;
       const mPending = mTotal - mCompleted;
@@ -546,30 +641,214 @@ export const TaskProvider = ({ children }) => {
     };
   }, [tasks, profiles]);
 
-  // Supabase Calendar Actions
-  const createEvent = useCallback(async (payload) => {
+  // Helper to normalize event type string
+  const normalizeEventType = (rawType) => {
+    if (!rawType) return 'meeting';
+    const t = rawType.toLowerCase().trim();
+    if (t.includes('leave')) return 'leave';
+    if (t.includes('meeting') || t.includes('sync')) return 'meeting';
+    if (t.includes('holiday') || t.includes('poya')) return 'holiday';
+    if (t.includes('reminder') || t.includes('review')) return 'reminder';
+    return t;
+  };
+
+  // Supabase Calendar Actions (Direct CRUD on public.calendar_events)
+  const createCalendarEvent = useCallback(async (eventData) => {
+    const rawType = eventData.event_type || eventData.type || 'meeting';
+    const normalizedType = normalizeEventType(rawType);
+    const isLeave = normalizedType === 'leave';
+
+    // Handle user_ids array for multi-member support
+    let userIds = [];
+    if (Array.isArray(eventData.user_ids)) {
+      userIds = eventData.user_ids;
+    } else if (eventData.member_id) {
+      userIds = [eventData.member_id];
+    } else if (isLeave) {
+      userIds = [eventData.assignee_id || currentUser?.id].filter(Boolean);
+    }
+
+    const payload = {
+      title: eventData.title.trim(),
+      event_type: normalizedType,
+      user_ids: userIds,
+      member_id: userIds.length === 1 ? userIds[0] : (eventData.member_id || null),
+      member_name: eventData.member_name || null,
+      start_date: eventData.start_date || toDateStringOnly(eventData.date || new Date()),
+      end_date: eventData.end_date || null,
+      all_day: eventData.all_day ?? true,
+      description: (eventData.description || eventData.notes || '').trim() || null,
+      status: eventData.status || (isLeave ? (isAdmin ? 'approved' : 'pending') : 'approved'),
+      created_by: currentUser?.id || null
+    };
+
+    // Optimistic insert
+    const tempId = 'temp-' + Date.now();
+    const optimisticEvent = {
+      ...payload,
+      id: tempId,
+      created_at: new Date().toISOString()
+    };
+    setCalendarEvents(prev => [...prev, optimisticEvent]);
+
     try {
-      const { data, error } = await supabase.from('team_events').insert([payload]).select();
-      if (error) throw error;
-      if (data) setEvents(prev => [...prev, data[0]]);
-    } catch (err) { console.error('Error creating event:', err); }
+      const { data, error } = await supabase
+        .from('calendar_events')
+        .insert([payload])
+        .select();
+
+      if (!error && data && data[0]) {
+        setCalendarEvents(prev => prev.map(e => (e.id === tempId ? data[0] : e)));
+        if (payload.status === 'approved' && isLeave) {
+          triggerConfetti();
+        }
+        return data[0];
+      } else if (error) {
+        console.error('Error inserting into calendar_events in Supabase:', error);
+        throw error;
+      }
+    } catch (err) {
+      console.error('Exception creating calendar event:', err);
+      throw err;
+    }
+  }, [currentUser, isAdmin, triggerConfetti]);
+
+  const updateCalendarEvent = useCallback(async (eventId, updates) => {
+    setCalendarEvents(prev => prev.map(e => (e.id === eventId ? { ...e, ...updates } : e)));
+
+    try {
+      const { data, error } = await supabase
+        .from('calendar_events')
+        .update(updates)
+        .eq('id', eventId)
+        .select();
+
+      if (error) {
+        console.error('Error updating calendar_events in Supabase:', error);
+        throw error;
+      }
+      return data?.[0];
+    } catch (err) {
+      console.error('Exception updating calendar event:', err);
+      throw err;
+    }
   }, []);
 
-  const requestLeave = useCallback(async (payload) => {
+  const deleteCalendarEvent = useCallback(async (eventId) => {
+    setCalendarEvents(prev => prev.filter(e => e.id !== eventId));
+
     try {
-      const { data, error } = await supabase.from('team_leaves').insert([payload]).select();
-      if (error) throw error;
-      if (data) setLeaves(prev => [...prev, data[0]]);
-    } catch (err) { console.error('Error requesting leave:', err); }
+      const { error } = await supabase
+        .from('calendar_events')
+        .delete()
+        .eq('id', eventId);
+
+      if (error) {
+        console.error('Error deleting calendar_events in Supabase:', error);
+        throw error;
+      }
+    } catch (err) {
+      console.error('Exception deleting calendar event:', err);
+      throw err;
+    }
   }, []);
 
   const updateLeaveStatus = useCallback(async (leaveId, status) => {
+    if (!isAdmin) return;
+    setCalendarEvents(prev => prev.map(e => (e.id === leaveId ? { ...e, status } : e)));
+
+    if (status === 'approved') {
+      triggerConfetti();
+    }
+
     try {
-      const { error } = await supabase.from('team_leaves').update({ status }).eq('id', leaveId);
-      if (error) throw error;
-      setLeaves(prev => prev.map(l => l.id === leaveId ? { ...l, status } : l));
-    } catch (err) { console.error('Error updating leave:', err); }
+      const { error } = await supabase
+        .from('calendar_events')
+        .update({ status })
+        .eq('id', leaveId);
+
+      if (error) {
+        console.error('Error updating leave status in Supabase:', error);
+      }
+    } catch (err) {
+      console.error('Exception in updateLeaveStatus:', err);
+    }
+  }, [isAdmin, triggerConfetti]);
+
+  // Work Roster / Daily Duty Schedule Actions
+  const saveDailyRoster = useCallback(async (dateStr, assignedMemberIds, notes = '') => {
+    const formattedDate = toDateStringOnly(dateStr);
+    const memberIds = Array.isArray(assignedMemberIds) ? assignedMemberIds : [];
+
+    const payload = {
+      date: formattedDate,
+      assigned_member_ids: memberIds,
+      notes: notes?.trim() || null,
+      created_by: currentUser?.id || null
+    };
+
+    // Optimistic state update
+    setWorkRosters(prev => {
+      const existingIdx = prev.findIndex(r => r.date === formattedDate);
+      if (existingIdx >= 0) {
+        const next = [...prev];
+        next[existingIdx] = { ...next[existingIdx], ...payload };
+        return next;
+      }
+      return [...prev, { ...payload, id: 'temp-' + Date.now(), created_at: new Date().toISOString() }];
+    });
+
+    try {
+      const { data, error } = await supabase
+        .from('work_roster')
+        .upsert([payload], { onConflict: 'date' })
+        .select();
+
+      if (!error && data && data[0]) {
+        setWorkRosters(prev => prev.map(r => (r.date === formattedDate ? data[0] : r)));
+        return data[0];
+      } else if (error) {
+        console.error('Error saving daily roster in Supabase:', error);
+        throw error;
+      }
+    } catch (err) {
+      console.error('Exception saving daily roster:', err);
+      throw err;
+    }
+  }, [currentUser]);
+
+  const deleteDailyRoster = useCallback(async (dateStr) => {
+    const formattedDate = toDateStringOnly(dateStr);
+    setWorkRosters(prev => prev.filter(r => r.date !== formattedDate));
+
+    try {
+      const { error } = await supabase
+        .from('work_roster')
+        .delete()
+        .eq('date', formattedDate);
+
+      if (error) {
+        console.error('Error deleting daily roster in Supabase:', error);
+        throw error;
+      }
+    } catch (err) {
+      console.error('Exception deleting daily roster:', err);
+      throw err;
+    }
   }, []);
+
+  // Backward compatibility alias methods
+  const createEvent = useCallback(async (payload) => {
+    return createCalendarEvent(payload);
+  }, [createCalendarEvent]);
+
+  const requestLeave = useCallback(async (payload) => {
+    return createCalendarEvent({
+      ...payload,
+      event_type: 'leave',
+      status: isAdmin ? 'approved' : 'pending'
+    });
+  }, [createCalendarEvent, isAdmin]);
 
   // Local Executive Report Fallback Generator
   const generateLocalExecutiveReport = (payload) => {
@@ -715,24 +994,113 @@ ${JSON.stringify(payload, null, 2)}`;
     }
 
     return reportContent;
-  }, [metrics, events, profiles, currentUser]);
+  }, [metrics, calendarEvents, profiles, currentUser]);
 
-  // Unified Calendar Events for UI
+  // Unified Normalized Calendar Events for UI
   const calendarEventsComputed = useMemo(() => {
-    const evts = events.map(e => ({
-      ...e,
-      date: e.date || e.event_date || e.created_at,
-    }));
-    const lvs = leaves.map(l => ({
-      id: l.id,
-      title: 'Leave',
-      type: 'leave',
-      date: l.start_date || l.date || l.created_at,
-      assignee_id: l.profile_id || l.assignee_id,
-      status: l.status || 'pending'
-    }));
-    return [...evts, ...lvs];
-  }, [events, leaves]);
+    return calendarEvents.map(e => {
+      const normalizedType = normalizeEventType(e.event_type || e.type);
+
+      // Extract user_ids array
+      let userIds = [];
+      if (Array.isArray(e.user_ids) && e.user_ids.length > 0) {
+        userIds = e.user_ids;
+      } else if (e.member_id) {
+        userIds = [e.member_id];
+      } else if (e.assignee_id) {
+        userIds = [e.assignee_id];
+      }
+
+      const isAllTeam = userIds.length === 0 || (profiles.length > 0 && userIds.length >= profiles.length);
+
+      return {
+        ...e,
+        title: e.title || (normalizedType === 'leave' ? 'Leave Request' : 'Untitled Event'),
+        type: normalizedType,
+        event_type: normalizedType,
+        user_ids: userIds,
+        member_id: userIds[0] || e.member_id || null,
+        assignee_id: userIds[0] || e.assignee_id || e.member_id || null,
+        member_name: e.member_name || '',
+        is_all_team: isAllTeam,
+        date: e.start_date || e.date || e.created_at,
+        start_date: e.start_date || e.date || e.created_at,
+        end_date: e.end_date || null,
+        all_day: e.all_day ?? true,
+        description: e.description || '',
+        notes: e.description || '',
+        status: e.status || 'approved',
+        created_by: e.created_by
+      };
+    });
+  }, [calendarEvents, profiles]);
+
+  const leaves = useMemo(() => {
+    return calendarEventsComputed.filter(e => e.type === 'leave');
+  }, [calendarEventsComputed]);
+
+  // Project CRUD Actions
+  const createProject = useCallback(async (projectData) => {
+    const newProject = {
+      id: 'proj-' + Date.now(),
+      name: projectData.name?.trim() || 'Untitled Project',
+      client_name: (projectData.client_name || '').trim(),
+      project_type: projectData.project_type || 'Web Development',
+      lead_id: projectData.lead_id || null,
+      lead_name: projectData.lead_name || '',
+      supporting_member_ids: Array.isArray(projectData.supporting_member_ids) ? projectData.supporting_member_ids : [],
+      status: projectData.status || 'In Progress',
+      website_url: (projectData.website_url || '').trim() || null,
+      deadline: projectData.deadline || null,
+      description: (projectData.description || '').trim() || '',
+      created_at: new Date().toISOString()
+    };
+
+    setProjects(prev => [newProject, ...prev.filter(p => p.id !== newProject.id)]);
+
+    triggerConfetti();
+
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .insert([newProject])
+        .select();
+
+      if (!error && data && data[0]) {
+        setProjects(prev => [data[0], ...prev.filter(p => p.id !== newProject.id && p.id !== data[0].id)]);
+        return data[0];
+      }
+    } catch (err) {
+      console.warn('Supabase projects insert exception:', err);
+    }
+    return newProject;
+  }, [triggerConfetti]);
+
+  const updateProject = useCallback(async (projectId, updates) => {
+    setProjects(prev => prev.map(p => (p.id === projectId ? { ...p, ...updates } : p)));
+
+    try {
+      await supabase
+        .from('projects')
+        .update(updates)
+        .eq('id', projectId);
+    } catch (err) {
+      console.warn('Error updating project in Supabase:', err);
+    }
+  }, []);
+
+  const deleteProject = useCallback(async (projectId) => {
+    setProjects(prev => prev.filter(p => p.id !== projectId));
+
+    try {
+      await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+    } catch (err) {
+      console.warn('Error deleting project in Supabase:', err);
+    }
+  }, []);
 
   const value = {
     session,
@@ -766,8 +1134,21 @@ ${JSON.stringify(payload, null, 2)}`;
     currentView,
     setCurrentView,
     calendarEvents: calendarEventsComputed,
+    rawCalendarEvents: calendarEvents,
     leaves,
-    events,
+    createCalendarEvent,
+    updateCalendarEvent,
+    deleteCalendarEvent,
+    fetchCalendarEvents,
+    workRosters,
+    saveDailyRoster,
+    deleteDailyRoster,
+    fetchWorkRosters,
+    projects,
+    fetchProjects,
+    createProject,
+    updateProject,
+    deleteProject,
     createEvent,
     requestLeave,
     updateLeaveStatus,
