@@ -4,7 +4,7 @@ import { useTasks } from '../context/TaskContext';
 import ReactMarkdown from 'react-markdown';
 
 export default function AIReportModal({ isOpen, onClose }) {
-  const { generateAIReport, tasks, profiles, metrics, leaves } = useTasks();
+  const { generateAIReport, tasks, scopedTasks, profiles, metrics, leaves } = useTasks();
   
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState(null);
@@ -12,10 +12,11 @@ export default function AIReportModal({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  // 1. Calculate live task distribution metrics
-  const total = tasks.length;
-  const completed = tasks.filter(t => t.status === 'done').length;
-  const review = tasks.filter(t => t.status === 'review').length;
+  // 1. Calculate live task distribution metrics (Scoped to active month)
+  const taskSource = scopedTasks || tasks;
+  const total = taskSource.length;
+  const completed = taskSource.filter(t => t.status === 'done').length;
+  const review = taskSource.filter(t => t.status === 'review').length;
   const pending = total - completed - review;
   const overallEfficiency = total > 0 ? Math.round((completed / total) * 100) : 0;
 
@@ -33,7 +34,7 @@ export default function AIReportModal({ isOpen, onClose }) {
 
   const departmentsList = ['HR', 'Financial', 'Production team', 'Marketing'];
   const departmentStats = departmentsList.map(dept => {
-    const deptTasks = tasks.filter(t => {
+    const deptTasks = taskSource.filter(t => {
       const d = getProfileDept(t.assigned_to);
       return d?.toLowerCase() === dept.toLowerCase();
     });

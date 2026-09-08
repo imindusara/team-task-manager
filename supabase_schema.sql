@@ -27,6 +27,7 @@ create table if not exists public.tasks (
   assigned_to text,
   created_by uuid references public.profiles(id) on delete set null,
   status text not null default 'todo' check (status in ('todo', 'review', 'done')),
+  task_month text, -- Format: 'YYYY-MM' (e.g. '2026-09')
   is_completed boolean not null default false,
   due_date timestamp with time zone,
   completed_at timestamp with time zone,

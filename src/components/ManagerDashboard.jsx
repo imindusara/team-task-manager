@@ -25,6 +25,11 @@ import { getDepartmentBadge } from '../lib/demoData';
 export default function ManagerDashboard() {
   const {
     tasks,
+    scopedTasks,
+    selectedMonth,
+    setSelectedMonth,
+    monthOptions,
+    formatMonthLabel,
     profiles,
     metrics,
     currentUser,
@@ -102,7 +107,8 @@ export default function ManagerDashboard() {
   };
 
   // Filter tasks combining all filters: Member, Timeframe, Status, Priority, Search Query
-  const filteredTasks = tasks.filter((task) => {
+  // Strictly scoped to selectedMonth (Current Month, Past Month Archive, or All Time)
+  const filteredTasks = scopedTasks.filter((task) => {
     // 1. Member Filter
     if (activeAssignee !== 'all') {
       const targetProfile = profiles.find(p => p.id === activeAssignee);
@@ -145,15 +151,15 @@ export default function ManagerDashboard() {
     return true;
   });
 
-  // Logged-in user's personal KPIs
-  const myTasks = tasks.filter((t) => t.assigned_to === (currentUser?.full_name || currentUser?.username));
+  // Logged-in user's personal KPIs (Scoped to selected month)
+  const myTasks = scopedTasks.filter((t) => t.assigned_to === (currentUser?.full_name || currentUser?.username));
   const myTotal = myTasks.length;
   const myCompleted = myTasks.filter((t) => t.status === 'done').length;
   const myPending = myTotal - myCompleted;
   const myRate = myTotal > 0 ? Math.round((myCompleted / myTotal) * 100) : 0;
 
   // Dynamic counts for status dropdown options (filtered by current member + timeframe)
-  const memberTasks = tasks.filter((task) => {
+  const memberTasks = scopedTasks.filter((task) => {
     if (activeAssignee !== 'all') {
       const targetProfile = profiles.find(p => p.id === activeAssignee);
       if (targetProfile) {
@@ -185,7 +191,7 @@ export default function ManagerDashboard() {
   const currentPending = currentTotal - currentCompleted;
   const currentReview = memberTimeframeTasks.filter(t => t.status === 'review').length;
 
-  const allReviewTasks = tasks.filter(t => t.status === 'review');
+  const allReviewTasks = scopedTasks.filter(t => t.status === 'review');
 
   const handleOpenCreate = () => {
     setIsCreateModalOpen(true);
@@ -211,8 +217,24 @@ export default function ManagerDashboard() {
             </p>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-3">
+          {/* Action Buttons & Month Filter Dropdown */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Month Filter Dropdown */}
+            <div className="relative">
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="rounded-xl glass-input px-3.5 py-2.5 text-xs font-bold text-indigo-300 bg-slate-900 border border-indigo-500/40 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/40 cursor-pointer shadow-lg transition-all"
+                title="Filter tasks strictly by active or historical month"
+              >
+                {monthOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value} className="bg-slate-900 text-slate-200">
+                    🗓️ {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <button
               onClick={() => handleOpenCreate()}
               disabled={!isAdmin}
@@ -462,18 +484,26 @@ export default function ManagerDashboard() {
             </div>
 
             {/* Task Filtering Summary Badge */}
-            <div className="flex items-center justify-between bg-slate-900/40 px-4 py-2.5 rounded-xl border border-slate-800/80">
+            <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/40 px-4 py-2.5 rounded-xl border border-slate-800/80">
               <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
                 <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
                 <span>
-                  Showing {activeAssignee === 'all' ? "All Members'" : `${profiles.find(p => p.id === activeAssignee)?.full_name || 'My'}`} Tasks &bull;{' '}
-                  {selectedTimeframe === 'all' && 'All Tasks'}
-                  {selectedTimeframe === 'today' && 'Today'}
-                  {selectedTimeframe === 'week' && 'This Week'}
-                  {selectedTimeframe === 'month' && 'This Month'}
+                  Month: <strong className="text-indigo-300">{formatMonthLabel(selectedMonth)}</strong> &bull; Showing {activeAssignee === 'all' ? "All Members'" : `${profiles.find(p => p.id === activeAssignee)?.full_name || 'My'}`} Tasks &bull;{' '}
+                  {selectedTimeframe === 'all' && 'All Due Dates'}
+                  {selectedTimeframe === 'today' && 'Due Today'}
+                  {selectedTimeframe === 'week' && 'Due This Week'}
+                  {selectedTimeframe === 'month' && 'Due This Month'}
                   {' '}({filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'})
                 </span>
               </div>
+              {selectedMonth !== 'current' && (
+                <button
+                  onClick={() => setSelectedMonth('current')}
+                  className="text-[11px] text-indigo-400 hover:text-indigo-300 underline font-bold"
+                >
+                  Return to This Month
+                </button>
+              )}
             </div>
 
             {/* Task Cards Grid */}

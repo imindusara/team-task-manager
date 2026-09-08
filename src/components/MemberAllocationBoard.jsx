@@ -129,6 +129,11 @@ const formatDueDate = (dateStr) => {
 export default function MemberAllocationBoard() {
   const { 
     tasks, 
+    scopedTasks,
+    selectedMonth,
+    setSelectedMonth,
+    monthOptions,
+    formatMonthLabel,
     profiles, 
     currentUser, 
     isAdmin, 
@@ -171,9 +176,9 @@ export default function MemberAllocationBoard() {
     );
   };
 
-  // Filter tasks based on search, status, and priority
+  // Filter tasks based on search, status, and priority (strictly scoped to selected month)
   const getTasksForMember = (member) => {
-    return tasks.filter((task) => {
+    return scopedTasks.filter((task) => {
       // 1. Assignee Match
       if (!isTaskForMember(task, member)) return false;
 
@@ -198,11 +203,11 @@ export default function MemberAllocationBoard() {
     });
   };
 
-  // Global KPI Calculations for the Allocation Board
-  const totalTasksCount = tasks.length;
-  const completedTasksCount = tasks.filter(t => t.status === 'done').length;
-  const pendingTasksCount = tasks.filter(t => t.status !== 'done' && t.status !== 'review').length;
-  const reviewTasksCount = tasks.filter(t => t.status === 'review').length;
+  // Global KPI Calculations for the Allocation Board (Scoped to selected month)
+  const totalTasksCount = scopedTasks.length;
+  const completedTasksCount = scopedTasks.filter(t => t.status === 'done').length;
+  const pendingTasksCount = scopedTasks.filter(t => t.status !== 'done' && t.status !== 'review').length;
+  const reviewTasksCount = scopedTasks.filter(t => t.status === 'review').length;
   const overallRate = totalTasksCount > 0 ? Math.round((completedTasksCount / totalTasksCount) * 100) : 0;
 
   return (
@@ -224,23 +229,41 @@ export default function MemberAllocationBoard() {
               </span>
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl">
-              Real-time workload distribution, project tags, and live checklist progress across all 6 company team members.
+              Real-time workload distribution, project tags, and live checklist progress across all 6 company team members for <strong className="text-indigo-300">{formatMonthLabel(selectedMonth)}</strong>.
             </p>
           </div>
 
-          {/* Quick Create Task Action */}
-          {isAdmin && (
-            <button
-              onClick={() => {
-                setSelectedMemberForAssign(null);
-                setIsAssignModalOpen(true);
-              }}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-lg bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-500 hover:from-indigo-500 hover:to-purple-500 shadow-indigo-600/25 hover:scale-[1.02] active:scale-[0.98] self-start lg:self-auto"
-            >
-              <Plus size={16} className="stroke-[3]" />
-              <span>+ Quick Task Assignment</span>
-            </button>
-          )}
+          {/* Quick Create Task Action & Month Filter */}
+          <div className="flex flex-wrap items-center gap-3 self-start lg:self-auto">
+            {/* Month Filter Dropdown */}
+            <div className="relative">
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="rounded-xl glass-input px-3.5 py-2.5 text-xs font-bold text-indigo-300 bg-slate-900 border border-indigo-500/40 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/40 cursor-pointer shadow-lg transition-all"
+                title="Select Active or Past Month to Filter Board"
+              >
+                {monthOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value} className="bg-slate-900 text-slate-200">
+                    🗓️ {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {isAdmin && (
+              <button
+                onClick={() => {
+                  setSelectedMemberForAssign(null);
+                  setIsAssignModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-lg bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-500 hover:from-indigo-500 hover:to-purple-500 shadow-indigo-600/25 hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <Plus size={16} className="stroke-[3]" />
+                <span>+ Quick Task Assignment</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Workload Metric Pills */}
@@ -345,8 +368,8 @@ export default function MemberAllocationBoard() {
         <div className="flex gap-4 items-start min-w-[1680px]">
           {memberList.map((member) => {
             const memberTasks = getTasksForMember(member);
-            const totalMemberTasks = tasks.filter(t => isTaskForMember(t, member)).length;
-            const completedMemberTasks = tasks.filter(t => isTaskForMember(t, member) && t.status === 'done').length;
+            const totalMemberTasks = scopedTasks.filter(t => isTaskForMember(t, member)).length;
+            const completedMemberTasks = scopedTasks.filter(t => isTaskForMember(t, member) && t.status === 'done').length;
             const pendingMemberTasks = totalMemberTasks - completedMemberTasks;
             const memberRate = totalMemberTasks > 0 ? Math.round((completedMemberTasks / totalMemberTasks) * 100) : 0;
 

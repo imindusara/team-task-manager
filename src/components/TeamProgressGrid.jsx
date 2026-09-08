@@ -11,8 +11,11 @@ export default function TeamProgressGrid() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <TrendingUp size={16} className="text-indigo-400" />
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-            6-Member Team Progress & Workload
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+            <span>6-Member Team Progress & Workload</span>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30 normal-case">
+              {metrics.activeMonthLabel || 'This Month'}
+            </span>
           </h3>
         </div>
         {selectedAssignee !== 'all' && (

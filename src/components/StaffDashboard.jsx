@@ -20,6 +20,11 @@ export default function StaffDashboard() {
   const {
     currentUser,
     tasks,
+    scopedTasks,
+    selectedMonth,
+    setSelectedMonth,
+    monthOptions,
+    formatMonthLabel,
     isAdmin,
     selectedStatus,
     setSelectedStatus,
@@ -29,8 +34,20 @@ export default function StaffDashboard() {
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  // Filter tasks assigned to current member
-  const myAllTasks = tasks.filter((t) => t.assigned_to === (currentUser?.full_name || currentUser?.username));
+  // Filter tasks assigned to current member strictly scoped to the active or selected month
+  const isMyTask = (t) => {
+    if (!t || !currentUser) return false;
+    const a = t.assigned_to;
+    return (
+      a === currentUser.id ||
+      a === currentUser.full_name ||
+      a === currentUser.username ||
+      a?.toLowerCase() === currentUser.full_name?.toLowerCase() ||
+      a?.toLowerCase() === currentUser.username?.toLowerCase()
+    );
+  };
+
+  const myAllTasks = scopedTasks.filter(isMyTask);
 
   const filteredTasks = myAllTasks.filter((task) => {
     if (selectedStatus === 'pending' && task.status === 'done') return false;
@@ -87,20 +104,37 @@ export default function StaffDashboard() {
             </div>
           </div>
 
-          {/* Quick Add Button */}
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            disabled={!isAdmin}
-            title={!isAdmin ? "Only HR/Admin can assign tasks" : ""}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-lg ${
-              isAdmin 
-                ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/25 hover:scale-[1.02] active:scale-[0.98]'
-                : 'bg-slate-700 opacity-50 cursor-not-allowed'
-            }`}
-          >
-            <Plus size={16} className="stroke-[3]" />
-            + Add Task
-          </button>
+          {/* Quick Month Selector & Add Button */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="relative">
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="rounded-xl glass-input px-3.5 py-2.5 text-xs font-bold text-indigo-300 bg-slate-900 border border-indigo-500/40 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/40 cursor-pointer shadow-lg transition-all"
+                title="Select Active or Past Month to Filter Dashboard"
+              >
+                {monthOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value} className="bg-slate-900 text-slate-200">
+                    🗓️ {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              disabled={!isAdmin}
+              title={!isAdmin ? "Only HR/Admin can assign tasks" : ""}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-lg ${
+                isAdmin 
+                  ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/25 hover:scale-[1.02] active:scale-[0.98]'
+                  : 'bg-slate-700 opacity-50 cursor-not-allowed'
+              }`}
+            >
+              <Plus size={16} className="stroke-[3]" />
+              + Add Task
+            </button>
+          </div>
         </div>
 
         {/* Individual Progress Bar */}
@@ -109,7 +143,7 @@ export default function StaffDashboard() {
             <div className="flex items-center gap-2">
               <TrendingUp size={15} className="text-indigo-400" />
               <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                My Task Completion Progress
+                My Progress &bull; <span className="text-indigo-300 normal-case">{formatMonthLabel(selectedMonth)}</span>
               </span>
             </div>
             <span className="text-xs font-black text-emerald-400">
@@ -182,6 +216,24 @@ export default function StaffDashboard() {
               <option value="completed">Completed Only ({completedMyTasks})</option>
             </select>
           </div>
+        </div>
+
+        {/* Month & Filter Summary Pill */}
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/40 px-4 py-2 rounded-xl border border-slate-800/80">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>
+              Month Scope: <strong className="text-indigo-300">{formatMonthLabel(selectedMonth)}</strong> &bull; Showing {filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'}
+            </span>
+          </div>
+          {selectedMonth !== 'current' && (
+            <button
+              onClick={() => setSelectedMonth('current')}
+              className="text-[11px] text-indigo-400 hover:text-indigo-300 underline font-bold"
+            >
+              Return to This Month
+            </button>
+          )}
         </div>
 
         {/* Task Cards */}

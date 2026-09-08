@@ -3,7 +3,15 @@ import confetti from 'canvas-confetti';
 import { supabase, logAppActivityPing } from '../lib/supabase';
 import { TEAM_MEMBERS } from '../lib/demoData';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { toDateStringOnly } from '../lib/dateUtils';
+import { 
+  toDateStringOnly, 
+  getCurrentMonthKey, 
+  formatMonthLabel, 
+  getTaskMonth, 
+  getTaskCompletionMonth, 
+  isTaskInMonthScope, 
+  getAvailableMonthOptions 
+} from '../lib/dateUtils';
 
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || '');
 
@@ -22,7 +30,8 @@ export const TaskProvider = ({ children }) => {
   const [isRealtimeLive, setIsRealtimeLive] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState(new Date());
 
-  // Filter states
+  // Filter states & Monthly Scoping
+  const [selectedMonth, setSelectedMonth] = useState('current'); // 'current', 'YYYY-MM', or 'all'
   const [selectedStatus, setSelectedStatus] = useState('all'); // all, pending, completed
   const [selectedPriority, setSelectedPriority] = useState('all'); // all, Urgent, High, Medium, Low
   const [selectedAssignee, setSelectedAssignee] = useState('mine'); // 'mine' (current user only), 'all', or profile id
@@ -486,6 +495,16 @@ export const TaskProvider = ({ children }) => {
     setCurrentUser(null);
   };
 
+  // Available Month Options derived from tasks
+  const monthOptions = useMemo(() => {
+    return getAvailableMonthOptions(tasks);
+  }, [tasks]);
+
+  // Monthly Scoped Tasks: Filters tasks strictly by selectedMonth ('current', 'YYYY-MM', or 'all')
+  const scopedTasks = useMemo(() => {
+    return tasks.filter(t => isTaskInMonthScope(t, selectedMonth));
+  }, [tasks, selectedMonth]);
+
   // 7. Toggle Task Status (Checkbox Tick)
   const toggleTaskStatus = useCallback(async (taskId) => {
     const currentTask = tasks.find(t => t.id === taskId);
@@ -502,9 +521,16 @@ export const TaskProvider = ({ children }) => {
       nextStatus = currentTask.status === 'review' ? 'todo' : 'review';
     }
 
+    const nowIso = new Date().toISOString();
+    const isDone = nextStatus === 'done';
+    const completionTimestamp = isDone ? (currentTask.completed_at || nowIso) : null;
+    const taskMonth = currentTask.task_month || getCurrentMonthKey();
+
     const updatedTask = {
       ...currentTask,
-      status: nextStatus
+      status: nextStatus,
+      completed_at: completionTimestamp,
+      task_month: taskMonth
     };
 
     if (nextStatus === 'done' || nextStatus === 'review') {
@@ -519,7 +545,8 @@ export const TaskProvider = ({ children }) => {
       const { error } = await supabase
         .from('tasks')
         .update({
-          status: nextStatus
+          status: nextStatus,
+          completed_at: completionTimestamp
         })
         .eq('id', taskId);
 
@@ -529,16 +556,19 @@ export const TaskProvider = ({ children }) => {
     } catch (err) {
       console.error('Task update exception:', err);
     }
-  }, [tasks, triggerConfetti]);
+  }, [tasks, isAdmin, triggerConfetti]);
 
   const createTask = useCallback(async (taskData) => {
+    const currentMonthKey = getCurrentMonthKey();
     const payload = {
       title: taskData.title.trim(),
       description: (taskData.description || '').trim() || null,
       priority: (taskData.priority || 'medium').toLowerCase(),
       assigned_to: taskData.assigned_to || (currentUser?.full_name || currentUser?.username),
       status: 'todo',
-      due_date: taskData.due_date ? new Date(taskData.due_date).toISOString() : null
+      task_month: taskData.task_month || currentMonthKey,
+      due_date: taskData.due_date ? new Date(taskData.due_date).toISOString() : null,
+      created_at: new Date().toISOString()
     };
 
     try {
@@ -550,7 +580,8 @@ export const TaskProvider = ({ children }) => {
       if (!error && data && data[0]) {
         const created = {
           ...data[0],
-          status: data[0].status || 'todo'
+          status: data[0].status || 'todo',
+          task_month: data[0].task_month || currentMonthKey
         };
         setTasks(prev => [created, ...prev.filter(t => t.id !== created.id)]);
         setLastSyncTime(new Date());
@@ -616,10 +647,11 @@ export const TaskProvider = ({ children }) => {
   // Approve / Reject workflows (HR/Admin only)
   const approveTask = useCallback(async (taskId) => {
     if (!isAdmin) return;
+    const nowIso = new Date().toISOString();
     try {
       const { error } = await supabase
         .from('tasks')
-        .update({ status: 'done' })
+        .update({ status: 'done', completed_at: nowIso })
         .eq('id', taskId);
 
       if (error) {
@@ -628,7 +660,7 @@ export const TaskProvider = ({ children }) => {
         return;
       }
 
-      setTasks(prev => prev.map(t => (t.id === taskId ? { ...t, status: 'done' } : t)));
+      setTasks(prev => prev.map(t => (t.id === taskId ? { ...t, status: 'done', completed_at: nowIso } : t)));
       setLastSyncTime(new Date());
       triggerConfetti();
     } catch (err) {
@@ -642,7 +674,7 @@ export const TaskProvider = ({ children }) => {
     try {
       const { error } = await supabase
         .from('tasks')
-        .update({ status: 'todo' })
+        .update({ status: 'todo', completed_at: null })
         .eq('id', taskId);
 
       if (error) {
@@ -651,7 +683,7 @@ export const TaskProvider = ({ children }) => {
         return;
       }
 
-      setTasks(prev => prev.map(t => (t.id === taskId ? { ...t, status: 'todo' } : t)));
+      setTasks(prev => prev.map(t => (t.id === taskId ? { ...t, status: 'todo', completed_at: null } : t)));
       setLastSyncTime(new Date());
     } catch (err) {
       console.error("Exception in rejectTask:", err);
@@ -659,15 +691,15 @@ export const TaskProvider = ({ children }) => {
     }
   }, [isAdmin]);
 
-  // Metrics calculation
+  // Metrics calculation strictly based on scopedTasks for current active month (or selected archive month)
   const metrics = useMemo(() => {
-    const total = tasks.length;
-    const completed = tasks.filter(t => t.status === 'done').length;
+    const total = scopedTasks.length;
+    const completed = scopedTasks.filter(t => t.status === 'done').length;
     const pending = total - completed;
     const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
 
     const memberStats = profiles.map(member => {
-      const memberTasks = tasks.filter(t => {
+      const memberTasks = scopedTasks.filter(t => {
         const a = t.assigned_to;
         return (
           a === member.id ||
@@ -696,9 +728,11 @@ export const TaskProvider = ({ children }) => {
       completed,
       pending,
       completionRate,
-      memberStats
+      memberStats,
+      selectedMonth,
+      activeMonthLabel: formatMonthLabel(selectedMonth)
     };
-  }, [tasks, profiles]);
+  }, [scopedTasks, profiles, selectedMonth]);
 
   // Helper to normalize event type string
   const normalizeEventType = (rawType) => {
@@ -1205,6 +1239,13 @@ ${JSON.stringify(payload, null, 2)}`;
     authLoading,
     profiles,
     tasks,
+    scopedTasks,
+    selectedMonth,
+    setSelectedMonth,
+    monthOptions,
+    getCurrentMonthKey,
+    formatMonthLabel,
+    isTaskInMonthScope,
     loadingTasks,
     isRealtimeLive,
     lastSyncTime,
