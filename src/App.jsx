@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { TaskProvider, useTasks } from './context/TaskContext';
+import { logAppActivityPing } from './lib/supabase';
 import Navbar from './components/Navbar';
 import LoginView from './components/LoginView';
 import ManagerDashboard from './components/ManagerDashboard';
@@ -11,6 +12,13 @@ import { ShieldCheck } from 'lucide-react';
 
 function DashboardView() {
   const { currentUser, authLoading, isAdmin, currentView } = useTasks();
+
+  // Automatic Keep-Alive & Activity ping whenever authenticated dashboard mounts
+  useEffect(() => {
+    if (currentUser) {
+      logAppActivityPing(currentUser);
+    }
+  }, [currentUser?.id]);
 
   if (authLoading) {
     return (

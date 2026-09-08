@@ -102,11 +102,21 @@ create table if not exists public.tasks (
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+create table if not exists public.app_activity_logs (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references public.profiles(id) on delete set null,
+  user_email text,
+  action text not null default 'dashboard_access_ping',
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
 alter table public.profiles enable row level security;
 alter table public.tasks enable row level security;
+alter table public.app_activity_logs enable row level security;
 
 create policy "Allow public all" on public.profiles for all using (true);
 create policy "Allow public all" on public.tasks for all using (true);
+create policy "Allow public all" on public.app_activity_logs for all using (true);
 
 alter publication supabase_realtime add table public.tasks, public.profiles;`;
 

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import confetti from 'canvas-confetti';
-import { supabase } from '../lib/supabase';
+import { supabase, logAppActivityPing } from '../lib/supabase';
 import { TEAM_MEMBERS } from '../lib/demoData';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { toDateStringOnly } from '../lib/dateUtils';
@@ -177,6 +177,7 @@ export const TaskProvider = ({ children }) => {
             );
             if (matched) {
               setCurrentUser(matched);
+              logAppActivityPing(matched);
             }
           } else {
             // Check local preference for demo or prompt login
@@ -188,6 +189,7 @@ export const TaskProvider = ({ children }) => {
               );
               if (matched) {
                 setCurrentUser(matched);
+                logAppActivityPing(matched);
               }
             }
           }
@@ -219,6 +221,7 @@ export const TaskProvider = ({ children }) => {
         );
         if (matched) {
           setCurrentUser(matched);
+          logAppActivityPing(matched);
           fetchTasks();
           fetchCalendarEvents();
         } else {
@@ -237,6 +240,13 @@ export const TaskProvider = ({ children }) => {
       subscription?.unsubscribe();
     };
   }, [fetchProfiles, fetchTasks, fetchCalendarEvents]);
+
+  // 3b. Automatic Supabase Keep-Alive & Activity Logger on Authenticated Mount
+  useEffect(() => {
+    if (currentUser) {
+      logAppActivityPing(currentUser);
+    }
+  }, [currentUser?.id]);
 
   // 4. Subscribe to Supabase Realtime for Tasks & Profiles
   useEffect(() => {
@@ -431,6 +441,7 @@ export const TaskProvider = ({ children }) => {
         setSession(signInData.session);
         localStorage.setItem('univerz_logged_user_email', email);
         setCurrentUser(matchedProfile);
+        logAppActivityPing(matchedProfile);
         await fetchTasks();
         return { success: true, user: matchedProfile };
       }
@@ -440,6 +451,7 @@ export const TaskProvider = ({ children }) => {
         // Seamlessly authenticate verified team member
         localStorage.setItem('univerz_logged_user_email', email);
         setCurrentUser(matchedProfile);
+        logAppActivityPing(matchedProfile);
         await fetchTasks();
         return { success: true, user: matchedProfile };
       }
@@ -453,6 +465,7 @@ export const TaskProvider = ({ children }) => {
       if (matchedProfile) {
         localStorage.setItem('univerz_logged_user_email', email);
         setCurrentUser(matchedProfile);
+        logAppActivityPing(matchedProfile);
         await fetchTasks();
         return { success: true, user: matchedProfile };
       }
@@ -1235,7 +1248,8 @@ ${JSON.stringify(payload, null, 2)}`;
     createEvent,
     requestLeave,
     updateLeaveStatus,
-    generateAIReport
+    generateAIReport,
+    logAppActivityPing
   };
 
   return (
