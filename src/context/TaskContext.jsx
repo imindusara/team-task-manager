@@ -48,25 +48,48 @@ export const TaskProvider = ({ children }) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
-        .order('full_name', { ascending: true });
+        .select('*');
 
-      if (!error && data && data.length > 0) {
-        const enriched = data.map(p => {
-          const preset = TEAM_MEMBERS.find(tm => tm.id === p.id || tm.username === p.username || tm.email === p.email);
-          return {
-            ...p,
-            avatar_url: preset?.avatar_url || p.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(p.full_name || p.username)}`,
-            color: preset?.color || '#6366f1'
-          };
-        });
-        setProfiles(enriched);
-        return enriched;
-      }
+      const sourceList = (!error && data && data.length > 0) ? data : TEAM_MEMBERS;
+
+      const enriched = sourceList.map(p => {
+        const preset = TEAM_MEMBERS.find(tm => 
+          tm.id === p.id || 
+          tm.username?.toLowerCase() === p.username?.toLowerCase() || 
+          tm.email?.toLowerCase() === p.email?.toLowerCase()
+        );
+        return {
+          ...p,
+          id: p.id || preset?.id,
+          full_name: preset?.full_name || p.full_name || p.username,
+          username: p.username || preset?.username,
+          email: p.email || preset?.email,
+          title: preset?.title || p.title || preset?.designation || 'Team Member',
+          designation: preset?.designation || p.designation || preset?.title || 'Team Member',
+          initials: preset?.initials || (p.full_name ? p.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'UN'),
+          avatar_url: preset?.avatar_url || p.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(p.full_name || p.username)}`,
+          color: preset?.color || '#6366f1',
+          security_pin: p.security_pin || preset?.security_pin || '12345',
+          role: p.role || preset?.role || 'member',
+          department: p.department || preset?.department || 'Operations'
+        };
+      });
+
+      // Sort in standard order: Subodha, Sadeepa, Sahan, Ashan, Widura, Pulasthi
+      const ORDER_KEYS = ['subodha', 'sadeepa', 'sahan', 'ashan', 'widura', 'pulasthi'];
+      enriched.sort((a, b) => {
+        const indexA = ORDER_KEYS.indexOf((a.username || '').toLowerCase());
+        const indexB = ORDER_KEYS.indexOf((b.username || '').toLowerCase());
+        return (indexA === -1 ? 99 : indexA) - (indexB === -1 ? 99 : indexB);
+      });
+
+      setProfiles(enriched);
+      return enriched;
     } catch (err) {
       console.error('Error fetching profiles from Supabase:', err);
+      setProfiles(TEAM_MEMBERS);
+      return TEAM_MEMBERS;
     }
-    return [];
   }, []);
 
   // 2. Fetch tasks strictly from public.tasks
@@ -482,6 +505,122 @@ export const TaskProvider = ({ children }) => {
     }
   };
 
+  // 5b. PIN-Based Authentication Handler
+  const loginWithPin = useCallback(async (userProfile, enteredPin, rememberDevice = true) => {
+    if (!userProfile) {
+      return { success: false, error: 'Please select a profile to sign in.' };
+    }
+
+    const cleanPin = String(enteredPin || '').trim();
+    if (cleanPin.length !== 5 || !/^\d{5}$/.test(cleanPin)) {
+      return { success: false, error: 'Please enter a valid 5-digit numeric PIN.' };
+    }
+
+    // 1. Re-check latest security_pin from Supabase profiles
+    let expectedPin = userProfile.security_pin || '12345';
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userProfile.id)
+        .single();
+
+      if (!error && data && data.security_pin) {
+        expectedPin = String(data.security_pin).trim();
+      }
+    } catch (err) {
+      console.warn('PIN fetch fallback:', err);
+    }
+
+    if (cleanPin !== expectedPin) {
+      return { 
+        success: false, 
+        error: 'Incorrect PIN. Please try again.' 
+      };
+    }
+
+    // Valid PIN - Grant session access
+    const authedUser = {
+      ...userProfile,
+      security_pin: expectedPin
+    };
+
+    if (rememberDevice) {
+      localStorage.setItem('univerz_logged_user_email', authedUser.email || authedUser.username);
+    } else {
+      localStorage.removeItem('univerz_logged_user_email');
+    }
+    localStorage.setItem('univerz_last_selected_profile_id', authedUser.id);
+
+    setCurrentUser(authedUser);
+    logAppActivityPing(authedUser);
+    await fetchTasks();
+    await fetchCalendarEvents();
+    await fetchWorkRosters();
+    await fetchProjects();
+    triggerConfetti();
+
+    return { success: true, user: authedUser };
+  }, [fetchTasks, fetchCalendarEvents, fetchWorkRosters, fetchProjects, triggerConfetti]);
+
+  // 5c. Change PIN Handler
+  const updateUserPin = useCallback(async (currentPin, newPin) => {
+    if (!currentUser) {
+      return { success: false, error: 'User is not authenticated.' };
+    }
+
+    const cleanCurrent = String(currentPin || '').trim();
+    const cleanNew = String(newPin || '').trim();
+
+    if (cleanNew.length !== 5 || !/^\d{5}$/.test(cleanNew)) {
+      return { success: false, error: 'New PIN must be exactly 5 numeric digits.' };
+    }
+
+    // Check current PIN
+    let expectedPin = currentUser.security_pin || '12345';
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('security_pin')
+        .eq('id', currentUser.id)
+        .single();
+
+      if (data?.security_pin) {
+        expectedPin = String(data.security_pin).trim();
+      }
+    } catch (err) {
+      console.warn('Fetch current pin error:', err);
+    }
+
+    if (cleanCurrent !== expectedPin) {
+      return { success: false, error: 'Current PIN is incorrect. Please try again.' };
+    }
+
+    // Update in Supabase public.profiles
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ security_pin: cleanNew })
+        .eq('id', currentUser.id);
+
+      if (error) {
+        console.error('Failed to update PIN in Supabase:', error);
+        return { success: false, error: 'Failed to update PIN in database: ' + error.message };
+      }
+
+      // Update state
+      const updatedUser = { ...currentUser, security_pin: cleanNew };
+      setCurrentUser(updatedUser);
+      setProfiles(prev => prev.map(p => p.id === currentUser.id ? { ...p, security_pin: cleanNew } : p));
+      triggerConfetti();
+
+      return { success: true };
+    } catch (err) {
+      console.error('Exception updating PIN:', err);
+      return { success: false, error: err.message || 'Error updating PIN' };
+    }
+  }, [currentUser, triggerConfetti]);
+
   // 6. Logout Handler
   const logout = async () => {
     try {
@@ -494,6 +633,25 @@ export const TaskProvider = ({ children }) => {
     setSession(null);
     setCurrentUser(null);
   };
+
+  // Role permissions: HR / Admins (Ashan & Widura) have full management rights
+  const isAdmin = useMemo(() => {
+    if (!currentUser) return false;
+    const role = (currentUser.role || '').toLowerCase();
+    const dept = (currentUser.department || '').toLowerCase();
+    const username = (currentUser.username || '').toLowerCase();
+    const name = (currentUser.full_name || '').toLowerCase();
+    return (
+      role === 'admin' ||
+      role === 'manager' ||
+      role === 'hr' ||
+      dept === 'hr' ||
+      username === 'ashan' ||
+      username === 'widura' ||
+      name.includes('ashan') ||
+      name.includes('widura')
+    );
+  }, [currentUser]);
 
   // Available Month Options derived from tasks
   const monthOptions = useMemo(() => {
@@ -624,25 +782,6 @@ export const TaskProvider = ({ children }) => {
       console.error('Error deleting task in Supabase:', err);
     }
   }, []);
-
-  // Role permissions: HR / Admins (Ashan & Widura) have full management rights
-  const isAdmin = useMemo(() => {
-    if (!currentUser) return false;
-    const role = (currentUser.role || '').toLowerCase();
-    const dept = (currentUser.department || '').toLowerCase();
-    const username = (currentUser.username || '').toLowerCase();
-    const name = (currentUser.full_name || '').toLowerCase();
-    return (
-      role === 'admin' ||
-      role === 'manager' ||
-      role === 'hr' ||
-      dept === 'hr' ||
-      username === 'ashan' ||
-      username === 'widura' ||
-      name.includes('ashan') ||
-      name.includes('widura')
-    );
-  }, [currentUser]);
 
   // Approve / Reject workflows (HR/Admin only)
   const approveTask = useCallback(async (taskId) => {
@@ -1023,7 +1162,7 @@ ${upcomingEventsLines}
     
     const payload = {
       metrics,
-      upcomingEvents: events.filter(e => new Date(e.date || e.event_date || e.created_at) >= new Date().setHours(0,0,0,0)),
+      upcomingEvents: (calendarEvents || []).filter(e => new Date(e.start_date || e.date || e.event_date || e.created_at) >= new Date().setHours(0,0,0,0)),
       teamProfiles: profiles.map(p => ({ name: p.full_name, role: p.role, department: p.department }))
     };
 
@@ -1259,6 +1398,8 @@ ${JSON.stringify(payload, null, 2)}`;
     searchQuery,
     setSearchQuery,
     login,
+    loginWithPin,
+    updateUserPin,
     logout,
     toggleTaskStatus,
     approveTask,

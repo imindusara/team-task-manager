@@ -1,63 +1,87 @@
 export const TEAM_MEMBERS = [
   {
-    id: 'b8807887-5805-4005-bea3-c77ec4472543',
-    full_name: 'Ashan Indusara',
-    username: 'ashan',
-    email: 'ashan@company.com',
-    department: 'HR',
-    role: 'admin',
-    avatar_url: '/Ashan.png',
-    color: '#6366f1'
-  },
-  {
-    id: '3b3b123b-a606-4a0e-a740-d6971398b4da',
-    full_name: 'Widura Bandara',
-    username: 'widura',
-    email: 'widura@company.com',
-    department: 'HR',
-    role: 'admin',
-    avatar_url: '/widura.png',
-    color: '#8b5cf6'
-  },
-  {
-    id: '5104abf7-3390-4271-af10-bab94bf26816',
-    full_name: 'Sahan',
-    username: 'sahan',
-    email: 'sahan@company.com',
-    department: 'Financial',
-    role: 'member',
-    avatar_url: '/sahan.png',
-    color: '#10b981'
-  },
-  {
-    id: '276585a2-6b0c-45b7-8840-7dbd2b714730',
-    full_name: 'Sadeepa',
-    username: 'sadeepa',
-    email: 'sadeepa@company.com',
-    department: 'Production team',
-    role: 'member',
-    avatar_url: '/sadeepa.png',
-    color: '#06b6d4'
-  },
-  {
-    id: 'bc767381-0864-48c0-b004-6f0037dc8e02',
-    full_name: 'Pulasthi',
-    username: 'pulasthi',
-    email: 'pulasthi@company.com',
-    department: 'Production team',
-    role: 'member',
-    avatar_url: '/pulasthi.png',
-    color: '#3b82f6'
-  },
-  {
     id: 'eb683a86-5664-43c9-9bd8-6590cf01d81a',
-    full_name: 'Subodha',
+    full_name: 'Subodha Kalhara',
+    initials: 'SK',
     username: 'subodha',
     email: 'subodha@company.com',
     department: 'Marketing',
     role: 'member',
+    title: 'Creative Lead',
+    designation: 'Creative Lead',
     avatar_url: '/subodha.png',
-    color: '#ec4899'
+    color: '#ec4899',
+    security_pin: '12345'
+  },
+  {
+    id: '276585a2-6b0c-45b7-8840-7dbd2b714730',
+    full_name: 'Sadeepa Namarathna',
+    initials: 'SN',
+    username: 'sadeepa',
+    email: 'sadeepa@company.com',
+    department: 'Production team',
+    role: 'member',
+    title: 'Video Production Lead',
+    designation: 'Video Production Lead',
+    avatar_url: '/sadeepa.png',
+    color: '#06b6d4',
+    security_pin: '12345'
+  },
+  {
+    id: '5104abf7-3390-4271-af10-bab94bf26816',
+    full_name: 'Sahan Madhawa',
+    initials: 'SM',
+    username: 'sahan',
+    email: 'sahan@company.com',
+    department: 'Financial',
+    role: 'member',
+    title: 'Admin · Finance',
+    designation: 'Admin · Finance',
+    avatar_url: '/sahan.png',
+    color: '#10b981',
+    security_pin: '12345'
+  },
+  {
+    id: 'b8807887-5805-4005-bea3-c77ec4472543',
+    full_name: 'Ashan Indusara',
+    initials: 'AI',
+    username: 'ashan',
+    email: 'ashan@company.com',
+    department: 'HR',
+    role: 'admin',
+    title: 'Social & Operations / HR Admin',
+    designation: 'Social & Operations / HR Admin',
+    avatar_url: '/Ashan.png',
+    color: '#6366f1',
+    security_pin: '12345'
+  },
+  {
+    id: '3b3b123b-a606-4a0e-a740-d6971398b4da',
+    full_name: 'Widura Bandara',
+    initials: 'WB',
+    username: 'widura',
+    email: 'widura@company.com',
+    department: 'HR',
+    role: 'admin',
+    title: 'HR Admin',
+    designation: 'HR Admin',
+    avatar_url: '/widura.png',
+    color: '#8b5cf6',
+    security_pin: '12345'
+  },
+  {
+    id: 'bc767381-0864-48c0-b004-6f0037dc8e02',
+    full_name: 'Pulasthi Wijayarathna',
+    initials: 'PW',
+    username: 'pulasthi',
+    email: 'pulasthi@company.com',
+    department: 'Production team',
+    role: 'member',
+    title: 'Web & Tech Lead',
+    designation: 'Web & Tech Lead',
+    avatar_url: '/pulasthi.png',
+    color: '#3b82f6',
+    security_pin: '12345'
   }
 ];
 

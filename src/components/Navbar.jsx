@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTasks } from '../context/TaskContext';
 import CreateTaskModal from './CreateTaskModal';
 import AIReportModal from './AIReportModal';
+import ChangePinModal from './ChangePinModal';
 import { 
   CheckSquare, 
   Plus, 
@@ -11,7 +12,8 @@ import {
   ChevronDown,
   Calendar as CalendarIcon,
   BellRing,
-  Briefcase
+  Briefcase,
+  KeyRound
 } from 'lucide-react';
 import { getDepartmentBadge } from '../lib/demoData';
 import univerzLogo from '../assets/univerz-logo.png';
@@ -31,6 +33,7 @@ export default function Navbar() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [isChangePinOpen, setIsChangePinOpen] = useState(false);
 
   // Active reminders count
   const remindersCount = (calendarEvents || []).filter(e => e.type === 'reminder').length;
@@ -55,7 +58,7 @@ export default function Navbar() {
                 </span>
               </div>
               <span className="text-[11px] text-slate-400 block -mt-0.5">
-                6-Person Task & Workflow Board
+                6-Person Task &amp; Workflow Board
               </span>
             </div>
           </div>
@@ -210,7 +213,7 @@ export default function Navbar() {
                           : 'text-slate-300 hover:text-indigo-400 hover:bg-slate-800/80'
                       }`}
                     >
-                      📅 Team Calendar & Leaves
+                      📅 Team Calendar &amp; Leaves
                     </button>
                     <button
                       onClick={() => {
@@ -232,12 +235,19 @@ export default function Navbar() {
                         </span>
                       )}
                     </button>
+
+                    {/* Change Security PIN Button */}
                     <button
-                      onClick={() => setIsUserMenuOpen(false)}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-slate-100 hover:bg-slate-800/80 transition-colors"
+                      onClick={() => {
+                        setIsChangePinOpen(true);
+                        setIsUserMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-indigo-300 hover:text-white hover:bg-indigo-600/20 border border-indigo-500/20 transition-colors"
                     >
-                      👤 Profile Settings
+                      <KeyRound size={13} className="text-indigo-400" />
+                      <span>Change Security PIN</span>
                     </button>
+
                     {isAdmin && (
                       <button
                         onClick={() => {
@@ -282,6 +292,11 @@ export default function Navbar() {
       <AIReportModal
         isOpen={isAIModalOpen}
         onClose={() => setIsAIModalOpen(false)}
+      />
+
+      <ChangePinModal
+        isOpen={isChangePinOpen}
+        onClose={() => setIsChangePinOpen(false)}
       />
     </>
   );
